@@ -1,14 +1,25 @@
 import pickle
 from pathlib import Path
 
+from tabulate import tabulate
+
 
 def load_latest_ckpt(ckpt_dir: Path):
-  with open(ckpt_dir/'latest_state.pickle', 'wb') as f:
-    dic = pickle.load(f, fix_imports=True)
+  ckpt = ckpt_dir / 'latest_state.pickle'
+  if not ckpt.exists():
+    return None
+  print('Loading latest checkpoint from file', ckpt)
+  with open(ckpt, 'rb') as f:
+    dic = pickle.load(f)
   return dic['step'], dic['params'], dic['aux'], dic['rng'], dic['optim_state']
 
 
 def save_ckpt(step, params, aux, rng, optim_state, ckpt_dir: Path):
   dic = {'step': step, 'params': params, 'aux': aux, 'rng': rng, 'optim_state': optim_state}
   with open(ckpt_dir/'latest_state.pickle', 'wb') as f:
-    pickle.dump(dic, f, fix_imports=True)
+    pickle.dump(dic, f)
+
+
+def print_flags(dict):
+  values = [(k, v) for k, v in dict.items() if not k.startswith('_')]
+  print(tabulate(values))

@@ -20,6 +20,14 @@ Download reinfo dataset
 bash ./scripts/download_reinfo_dataset.sh
 ```
 
+
+Train duration model
+--------------------
+
+```sh
+python3 -m vietTTS.nat.duration_trainer
+```
+
 Train Tacotron 
 --------------
 

@@ -28,10 +28,7 @@ class DurationModel(hk.Module):
     x_bwd, mask_bwd = jax.tree_map(lambda x: jnp.flip(x, axis=1), (x, mask))
     h0c0_bwd = self.lstm_bwd.initial_state(B)
     new_hx_bwd, new_hxcx_bwd = hk.dynamic_unroll(self.lstm_bwd, (x_bwd, mask_bwd), h0c0_bwd, time_major=False)
-    x = jnp.concatenate(
-        (new_hx_fwd, jnp.flip(new_hx_bwd, axis=1)),
-        axis=-1
-    )
-    x = self.projection(x)
+    x = jnp.concatenate((new_hx_fwd, jnp.flip(new_hx_bwd, axis=1)), axis=-1)
+    x = jnp.squeeze(self.projection(x), axis=-1)
     x = jax.nn.relu(x)
     return x
