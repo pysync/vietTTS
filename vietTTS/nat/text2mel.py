@@ -36,13 +36,14 @@ def text2tokens(text):
   lexicon = load_lexicon(FLAGS.data_dir / 'lexicon.txt')
 
   words = text.strip().lower().split()
-  tokens = []
+  tokens = [0]
   for word in words:
     if word in lexicon:
       p = lexicon[word]
       p = p.split()
       p = [phonemes.index(pp) for pp in p]
       tokens.extend(p)
+  tokens.append(0)
   return tokens
 
 
