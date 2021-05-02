@@ -40,20 +40,21 @@ class LSTM(hk.RNNCore):
     h = jax.nn.sigmoid(o) * jnp.tanh(c)
 
     if self.is_training:
-      rng1, rng_next = jax.random.split(prev_state.rng, 2)
+      rng1, rng_next = jax.random.split(prev_state.rng[0], 2)
       mask = jax.random.bernoulli(rng1, 0.1, (2,) + h.shape)
       h = mask[0] * prev_state.hidden + (1 - mask[0]) * h
       c = mask[1] * prev_state.cell + (1 - mask[1]) * c
+      rng_next = add_batch(rng_next, h.shape[0])
     else:
       rng_next = prev_state.rng
     return h, LSTMState(h, c, rng_next)
 
   def initial_state(self, batch_size: Optional[int]) -> LSTMState:
-    state = LSTMState(hidden=jnp.zeros([batch_size, self.hidden_size]),
-                      cell=jnp.zeros([batch_size, self.hidden_size]),
+    state = LSTMState(hidden=jnp.zeros([self.hidden_size]),
+                      cell=jnp.zeros([self.hidden_size]),
                       rng=hk.next_rng_key())
-    # if batch_size is not None:
-    #   state = add_batch(state, batch_size)
+    if batch_size is not None:
+      state = add_batch(state, batch_size)
     return state
 
 
