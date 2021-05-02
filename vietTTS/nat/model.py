@@ -1,3 +1,5 @@
+from typing import NamedTuple, Optional, Tuple
+
 import haiku as hk
 import jax
 import jax.numpy as jnp
@@ -9,6 +11,52 @@ from vietTTS.tacotron.config import FLAGS
 from .config import FLAGS, AcousticInput, DurationInput
 
 
+class LSTMState(NamedTuple):
+  hidden: jnp.ndarray
+  cell: jnp.ndarray
+  rng: jnp.ndarray
+
+
+def add_batch(nest, batch_size: Optional[int]):
+  def broadcast(x): return jnp.broadcast_to(x, (batch_size,) + x.shape)
+  return jax.tree_map(broadcast, nest)
+
+
+class LSTM(hk.RNNCore):
+
+  def __init__(self, hidden_size: int, is_training=True, name: Optional[str] = None):
+    super().__init__(name=name)
+    self.hidden_size = hidden_size
+    self.is_training = is_training
+
+  def __call__(self, inputs: jnp.ndarray, prev_state: LSTMState,) -> Tuple[jnp.ndarray, LSTMState]:
+    if len(inputs.shape) > 2 or not inputs.shape:
+      raise ValueError("LSTM input must be rank-1 or rank-2.")
+    x_and_h = jnp.concatenate([inputs, prev_state.hidden], axis=-1)
+    gated = hk.Linear(4 * self.hidden_size)(x_and_h)
+    i, g, f, o = jnp.split(gated, indices_or_sections=4, axis=-1)
+    f = jax.nn.sigmoid(f + 1)  # Forget bias, as in sonnet.
+    c = f * prev_state.cell + jax.nn.sigmoid(i) * jnp.tanh(g)
+    h = jax.nn.sigmoid(o) * jnp.tanh(c)
+
+    if self.is_training:
+      rng1, rng_next = jax.random.split(prev_state.rng, 2)
+      mask = jax.random.bernoulli(rng1, 0.1, (2,) + h.shape)
+      h = mask[0] * prev_state.hidden + (1 - mask[0]) * h
+      c = mask[1] * prev_state.cell + (1 - mask[1]) * c
+    else:
+      rng_next = prev_state.rng
+    return h, LSTMState(h, c, rng_next)
+
+  def initial_state(self, batch_size: Optional[int]) -> LSTMState:
+    state = LSTMState(hidden=jnp.zeros([batch_size, self.hidden_size]),
+                      cell=jnp.zeros([batch_size, self.hidden_size]),
+                      rng=hk.next_rng_key())
+    # if batch_size is not None:
+    #   state = add_batch(state, batch_size)
+    return state
+
+
 class TokenEncoder(hk.Module):
   """Encode phonemes/text to vector"""
 
@@ -16,8 +64,8 @@ class TokenEncoder(hk.Module):
     super().__init__()
     self.is_training = is_training
     self.embed = hk.Embed(vocab_size, lstm_dim)
-    self.lstm_fwd = hk.LSTM(lstm_dim)
-    self.lstm_bwd = hk.ResetCore(hk.LSTM(lstm_dim))
+    self.lstm_fwd = LSTM(lstm_dim, is_training=is_training)
+    self.lstm_bwd = hk.ResetCore(LSTM(lstm_dim, is_training=is_training))
     self.dropout_rate = dropout_rate
 
   def __call__(self, x, lengths):
@@ -59,8 +107,8 @@ class AcousticModel(hk.Module):
     self.is_training = is_training
     self.encoder = TokenEncoder(FLAGS.vocab_size, FLAGS.acoustic_encoder_dim, 0.5, is_training)
     self.decoder = hk.deep_rnn_with_skip_connections([
-        hk.LSTM(FLAGS.acoustic_decoder_dim),
-        hk.LSTM(FLAGS.acoustic_decoder_dim)
+        LSTM(FLAGS.acoustic_decoder_dim, is_training=is_training),
+        LSTM(FLAGS.acoustic_decoder_dim, is_training=is_training)
     ])
     self.projection = hk.Linear(FLAGS.mel_dim)
 
