@@ -1,43 +1,60 @@
+import pickle
+from functools import partial
 from typing import Deque
 
 import haiku as hk
 import jax
 import jax.numpy as jnp
+import matplotlib.pyplot as plt
 import optax
+from jax.interpreters.masking import is_tracing
+from tqdm.auto import tqdm
 from vietTTS.nat.config import AcousticInput
 from vietTTS.tacotron.dsp import MelFilter
 
 from .config import FLAGS, AcousticInput
+from .data_loader import load_textgrid_wav
 from .model import AcousticModel
 from .utils import print_flags
-from .data_loader import load_textgrid_wav
-
 
 
 @hk.transform_with_state
 def net(x): return AcousticModel(is_training=True)(x)
 
 
-def loss_fn(params, aux, rng, inputs: AcousticInput):
-  melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim)
-  mels=melfilter(inputs.wavs.astype(jnp.float32) / (2**15))
-  B, L, D= mels.shape
-  inp_mels = jnp.concatenate( 
-    (
-      jnp.zeros((B, 1, D), dtype=jnp.float32), 
-      mels[:, :-1, :]
-    ), axis=1)
+@hk.transform_with_state
+def val_net(x): return AcousticModel(is_training=False)(x)
 
+
+@jax.jit
+def val_forward(params, aux, rng, inputs: AcousticInput):
+  melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim)
+  mels = melfilter(inputs.wavs.astype(jnp.float32) / (2**15))
+  B, L, D = mels.shape
+  inp_mels = jnp.concatenate((jnp.zeros((B, 1, D), dtype=jnp.float32), mels[:, :-1, :]), axis=1)
 
   n_frames = inputs.durations / 10 * FLAGS.sample_rate / (FLAGS.n_fft//4)
-  inputs = inputs._replace(mels = inp_mels, durations=n_frames)
-  (mel1_hat, mel2_hat), new_aux = net.apply(params, aux, rng, inputs)
+  inputs = inputs._replace(mels=inp_mels, durations=n_frames)
+  (mel1_hat, mel2_hat), new_aux = val_net.apply(params, aux, rng, inputs)
+  return mel1_hat, mel2_hat
+
+
+def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
+  melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim)
+  mels = melfilter(inputs.wavs.astype(jnp.float32) / (2**15))
+  B, L, D = mels.shape
+  inp_mels = jnp.concatenate((jnp.zeros((B, 1, D), dtype=jnp.float32), mels[:, :-1, :]), axis=1)
+  n_frames = inputs.durations / 10 * FLAGS.sample_rate / (FLAGS.n_fft//4)
+  inputs = inputs._replace(mels=inp_mels, durations=n_frames)
+  (mel1_hat, mel2_hat), new_aux = (net if is_training else val_net).apply(params, aux, rng, inputs)
   loss = jnp.mean(jnp.square(mel1_hat - mels) + jnp.square(mel2_hat - mels))
-  return loss, new_aux
+  return (loss, new_aux) if is_training else (loss, mel2_hat, mels)
 
 
-loss_vag = jax.value_and_grad(loss_fn, has_aux=True)
+train_loss_fn = partial(loss_fn, is_training=True)
+val_loss_fn = partial(loss_fn, is_training=False)
 
+loss_vag = jax.value_and_grad(train_loss_fn, has_aux=True)
 
 optimizer = optax.chain(
     optax.clip_by_global_norm(1.0),
@@ -63,21 +80,59 @@ def initial_state(batch):
 
 def train():
   train_data_iter = load_textgrid_wav(FLAGS.data_dir, FLAGS.max_phoneme_seq_len, 2, FLAGS.max_wave_len, 'train')
-  batch = next(train_data_iter)
+  val_data_iter = load_textgrid_wav(FLAGS.data_dir, FLAGS.max_phoneme_seq_len, 2, FLAGS.max_wave_len, 'val')
   melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim)
+  batch = next(train_data_iter)
   batch = batch._replace(mels=melfilter(batch.wavs.astype(jnp.float32) / (2**15)))
   params, aux, rng, optim_state = initial_state(batch)
   losses = Deque(maxlen=1000)
   val_losses = Deque(maxlen=1000)
 
   last_step = -1
-  for step in range(last_step + 1, FLAGS.num_training_steps + 1):
+
+  # loading latest checkpoint
+  ckpt_fn = FLAGS.ckpt_dir / 'acoustic_ckpt_latest.pickle'
+  if ckpt_fn.exists():
+    print('Resuming from latest checkpoint at', ckpt_fn)
+    with open(ckpt_fn, 'rb') as f:
+      dic = pickle.load(f)
+      last_step, params, aux, rng, optim_state = dic['step'], dic['params'], dic['aux'], dic['rng'], dic['optim_state']
+
+  tr = tqdm(
+      range(last_step + 1, FLAGS.num_training_steps + 1),
+      desc='training',
+      total=FLAGS.num_training_steps+1,
+      initial=last_step+1
+  )
+  for step in tr:
+    batch = next(train_data_iter)
     loss, (params, aux, rng, optim_state) = update(params, aux, rng, optim_state, batch)
     losses.append(loss)
 
-    if step % 100 == 0:
+    if step % 10 == 0:
+      val_batch = next(val_data_iter)
+      val_loss, predicted_mel, gt_mel = val_loss_fn(params, aux, rng, val_batch)
+      val_losses.append(val_loss)
+
+    if step % 1000 == 0:
       loss = sum(losses).item() / len(losses)
-      print(f'step {step}  train loss {loss:.3f}')
+      val_loss = sum(val_losses).item() / len(val_losses)
+      tr.write(f'step {step}  train loss {loss:.3f}  val loss {val_loss:.3f}')
+
+      # saving predicted mels
+      plt.figure(figsize=(10, 10))
+      plt.subplot(2, 1, 1)
+      plt.imshow(predicted_mel[0].T, origin='lower', aspect='auto')
+
+      plt.subplot(2, 1, 2)
+      plt.imshow(gt_mel[0].T, origin='lower', aspect='auto')
+      plt.tight_layout()
+      plt.savefig(FLAGS.ckpt_dir / f'mel_{step}.png')
+      plt.close()
+
+      # saving checkpoint
+      with open(ckpt_fn, 'wb') as f:
+        pickle.dump({'step': step, 'params': params, 'aux': aux, 'rng': rng, 'optim_state': optim_state}, f)
 
 
 if __name__ == '__main__':
