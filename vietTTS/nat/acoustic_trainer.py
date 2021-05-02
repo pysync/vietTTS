@@ -52,7 +52,7 @@ def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
 
 
 train_loss_fn = partial(loss_fn, is_training=True)
-val_loss_fn = partial(loss_fn, is_training=False)
+val_loss_fn = jax.jit(partial(loss_fn, is_training=False))
 
 loss_vag = jax.value_and_grad(train_loss_fn, has_aux=True)
 

@@ -64,8 +64,19 @@ class AcousticModel(hk.Module):
     ])
     self.projection = hk.Linear(FLAGS.mel_dim)
 
+    ## prenet
+    self.prenet_fc1 = hk.Linear(256, with_bias=True)
+    self.prenet_fc2 = hk.Linear(256, with_bias=True)
+    ## posnet
     self.postnet_convs = [hk.Conv1D(FLAGS.postnet_dim, 5) for _ in range(4)] + [hk.Conv1D(FLAGS.mel_dim, 5)]
     self.postnet_bns = [hk.BatchNorm(True, True, 0.99) for _ in range(4)] + [None]
+
+  def prenet(self, x, dropout=0.5):
+    x = jax.nn.relu( self.prenet_fc1(x) )
+    x = hk.dropout(hk.next_rng_key(), dropout, x) if dropout > 0 else x
+    x = jax.nn.relu( self.prenet_fc2(x) )
+    x = hk.dropout(hk.next_rng_key(), dropout, x) if dropout > 0 else x
+    return x
 
   def upsample(self, x, durations, L):
     ruler = jnp.arange(0, L)[None, :]  # B, L
@@ -75,7 +86,7 @@ class AcousticModel(hk.Module):
     d2 = jnp.square((mid_pos[:, None, :] - ruler[:, :, None])) / 10.
     w = jax.nn.softmax(-d2, axis=-1)
     # import matplotlib.pyplot as plt 
-    # plt.imshow(w[0, 50:150, :50].T)
+    # plt.imshow(w[0].T)
     # plt.savefig('att.png')
     # plt.close()
     x = jnp.einsum('BLT,BTD->BLD', w, x)
@@ -94,7 +105,8 @@ class AcousticModel(hk.Module):
   def __call__(self, inputs:AcousticInput):
     x = self.encoder(inputs.phonemes, inputs.lengths)
     x = self.upsample(x, inputs.durations, inputs.mels.shape[1])
-    x = jnp.concatenate((x, inputs.mels), axis=-1)
+    mels = self.prenet(inputs.mels)
+    x = jnp.concatenate((x, mels), axis=-1)
     B, L, D = x.shape
     hx = self.decoder.initial_state(B)
     x, new_hx = hk.dynamic_unroll(self.decoder, x, hx, time_major=False)
