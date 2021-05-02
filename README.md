@@ -28,6 +28,20 @@ Train duration model
 python3 -m vietTTS.nat.duration_trainer
 ```
 
+
+Train acoustic model
+--------------------
+```sh
+python3 -m vietTTS.nat.acoustic_trainer
+```
+
+
+Text to melspectrogram
+
+```sh
+python3 -m vietTTS.nat.text2mel --text "hôm qua em tới trường" --output mel.png
+```
+
 Train Tacotron 
 --------------
 

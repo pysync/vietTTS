@@ -3,9 +3,10 @@ from pathlib import Path
 
 import numpy as np
 import textgrid
+from scipy.io import wavfile
 from vietTTS.nat.model import DurationModel
 
-from .config import DurationInput, AcousticInput
+from .config import AcousticInput, DurationInput
 
 
 def load_phonemes_set_from_lexicon_file(fn: Path):
@@ -32,7 +33,7 @@ def load_textgrid(fn: Path):
   return data
 
 
-def textgrid_data_loader(data_dir: Path, seq_len:int, batch_size: int, mode: str):
+def textgrid_data_loader(data_dir: Path, seq_len: int, batch_size: int, mode: str):
   tg_files = sorted(data_dir.glob('*.TextGrid'))
   random.Random(42).shuffle(tg_files)
   L = len(tg_files) * 8 // 10
@@ -66,7 +67,6 @@ def textgrid_data_loader(data_dir: Path, seq_len:int, batch_size: int, mode: str
         batch = []
 
 
-from scipy.io import wavfile  # .read
 def load_textgrid_wav(data_dir: Path, token_seq_len: int, batch_size, pad_wav_len, mode: str):
   tg_files = sorted(data_dir.glob('*.TextGrid'))
   random.Random(42).shuffle(tg_files)
@@ -85,7 +85,6 @@ def load_textgrid_wav(data_dir: Path, token_seq_len: int, batch_size, pad_wav_le
     l = len(ps)
     ps = pad_seq(ps, token_seq_len, 0)
     ds = pad_seq(ds, token_seq_len, 0)
-
 
     wav_file = data_dir / f'{fn.stem}.wav'
     sr, y = wavfile.read(wav_file)
@@ -109,4 +108,3 @@ def load_textgrid_wav(data_dir: Path, token_seq_len: int, batch_size, pad_wav_le
         wav_lengths = np.array(wav_lengths, dtype=np.int32)
         yield AcousticInput(ps, lengths, ds, wavs, wav_lengths, None)
         batch = []
-

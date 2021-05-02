@@ -6,7 +6,7 @@ from haiku._src.data_structures import K
 from jax.numpy import ndarray
 from vietTTS.tacotron.config import FLAGS
 
-from .config import FLAGS, DurationInput, AcousticInput
+from .config import FLAGS, AcousticInput, DurationInput
 
 
 class TokenEncoder(hk.Module):
@@ -64,18 +64,18 @@ class AcousticModel(hk.Module):
     ])
     self.projection = hk.Linear(FLAGS.mel_dim)
 
-    ## prenet
-    self.prenet_fc1 = hk.Linear(256, with_bias=True)
-    self.prenet_fc2 = hk.Linear(256, with_bias=True)
-    ## posnet
+    # prenet
+    # self.prenet_fc1 = hk.Linear(256, with_bias=True)
+    # self.prenet_fc2 = hk.Linear(256, with_bias=True)
+    # posnet
     self.postnet_convs = [hk.Conv1D(FLAGS.postnet_dim, 5) for _ in range(4)] + [hk.Conv1D(FLAGS.mel_dim, 5)]
     self.postnet_bns = [hk.BatchNorm(True, True, 0.99) for _ in range(4)] + [None]
 
   def prenet(self, x, dropout=0.5):
-    x = jax.nn.relu( self.prenet_fc1(x) )
-    x = hk.dropout(hk.next_rng_key(), dropout, x) if dropout > 0 else x
-    x = jax.nn.relu( self.prenet_fc2(x) )
-    x = hk.dropout(hk.next_rng_key(), dropout, x) if dropout > 0 else x
+    # x = jax.nn.relu(self.prenet_fc1(x))
+    # x = hk.dropout(hk.next_rng_key(), dropout, x) if dropout > 0 else x
+    # x = jax.nn.relu(self.prenet_fc2(x))
+    # x = hk.dropout(hk.next_rng_key(), dropout, x) if dropout > 0 else x
     return x
 
   def upsample(self, x, durations, L):
@@ -85,7 +85,7 @@ class AcousticModel(hk.Module):
 
     d2 = jnp.square((mid_pos[:, None, :] - ruler[:, :, None])) / 10.
     w = jax.nn.softmax(-d2, axis=-1)
-    # import matplotlib.pyplot as plt 
+    # import matplotlib.pyplot as plt
     # plt.imshow(w[0].T)
     # plt.savefig('att.png')
     # plt.close()
@@ -102,14 +102,37 @@ class AcousticModel(hk.Module):
       x = hk.dropout(hk.next_rng_key(), 0.5, x) if self.is_training else x
     return x
 
-  def __call__(self, inputs:AcousticInput):
+  def inference(self, tokens, durations, n_frames):
+    B, L = tokens.shape
+    lengths = jnp.array([L], dtype=jnp.int32)
+    x = self.encoder(tokens, lengths)
+    x = self.upsample(x, durations, n_frames)
+
+    def loop_fn(inputs, state):
+      cond = inputs
+      prev_mel, hxcx = state
+      prev_mel = self.prenet(prev_mel)
+      x = jnp.concatenate((cond, prev_mel), axis=-1)
+      x, new_hxcx = self.decoder(x, hxcx)
+      x = self.projection(x)
+      return x, (x, new_hxcx)
+
+    state = (
+        jnp.zeros((B, FLAGS.mel_dim), dtype=jnp.float32),
+        self.decoder.initial_state(B)
+    )
+    x, _ = hk.dynamic_unroll(loop_fn, x, state, time_major=False)
+    residual = self.postnet(x)
+    return x + residual
+
+  def __call__(self, inputs: AcousticInput):
     x = self.encoder(inputs.phonemes, inputs.lengths)
     x = self.upsample(x, inputs.durations, inputs.mels.shape[1])
     mels = self.prenet(inputs.mels)
     x = jnp.concatenate((x, mels), axis=-1)
     B, L, D = x.shape
     hx = self.decoder.initial_state(B)
-    x, new_hx = hk.dynamic_unroll(self.decoder, x, hx, time_major=False)
+    x, _ = hk.dynamic_unroll(self.decoder, x, hx, time_major=False)
     x = self.projection(x)
     residual = self.postnet(x)
     return x, x + residual
