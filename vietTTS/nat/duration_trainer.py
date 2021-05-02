@@ -75,7 +75,7 @@ def train():
   train_data_iter = textgrid_data_loader(FLAGS.data_dir, FLAGS.max_phoneme_seq_len, FLAGS.batch_size, mode='train')
   val_data_iter = textgrid_data_loader(FLAGS.data_dir, FLAGS.max_phoneme_seq_len, FLAGS.batch_size, mode='val')
   losses = Deque(maxlen=1000)
-  val_losses = Deque(maxlen=1000)
+  val_losses = Deque(maxlen=100)
   latest_ckpt = load_latest_ckpt(FLAGS.ckpt_dir)
   if latest_ckpt is not None:
     last_step, params, aux, rng, optim_state = latest_ckpt
