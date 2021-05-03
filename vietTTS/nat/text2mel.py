@@ -43,7 +43,7 @@ def text2tokens(text):
       p = p.split()
       p = [phonemes.index(pp) for pp in p]
       tokens.extend(p)
-  tokens.append(0)
+  tokens.append(1)
   return tokens
 
 
