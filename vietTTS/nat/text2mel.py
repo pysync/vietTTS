@@ -58,7 +58,8 @@ def predict_mel(tokens, durations):
     net = AcousticModel(is_training=False)
     return net.inference(tokens, durations, n_frames)
 
-  n_frames = int(jnp.sum(durations).item() / 10.0 * FLAGS.sample_rate / (FLAGS.n_fft//4))
+  durations = durations / 10 * FLAGS.sample_rate / (FLAGS.n_fft//4)
+  n_frames = int(jnp.sum(durations).item())
   predict_fn = jax.jit(forward.apply, static_argnums=[5])
   tokens = np.array(tokens, dtype=np.int32)[None, :]
   return predict_fn(params, aux, rng, tokens, durations, n_frames)[0]

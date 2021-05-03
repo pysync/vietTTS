@@ -24,7 +24,7 @@ class TokenEncoder(hk.Module):
 
   def __call__(self, x, lengths):
     x = self.embed(x)
-    # x = hk.dropout(hk.next_rng_key(), self.dropout_rate, x) if self.is_training else x
+    x = hk.dropout(hk.next_rng_key(), self.dropout_rate, x) if self.is_training else x
     B, L, D = x.shape
     mask = jnp.arange(0, L)[None, :] >= (lengths[:, None] - 1)
     h0c0_fwd = self.lstm_fwd.initial_state(B)
@@ -67,17 +67,17 @@ class AcousticModel(hk.Module):
     self.projection = hk.Linear(FLAGS.mel_dim)
 
     # prenet
-    # self.prenet_fc1 = hk.Linear(256, with_bias=True)
-    # self.prenet_fc2 = hk.Linear(256, with_bias=True)
+    self.prenet_fc1 = hk.Linear(256, with_bias=True)
+    self.prenet_fc2 = hk.Linear(256, with_bias=True)
     # posnet
     self.postnet_convs = [hk.Conv1D(FLAGS.postnet_dim, 5) for _ in range(4)] + [hk.Conv1D(FLAGS.mel_dim, 5)]
     self.postnet_bns = [hk.BatchNorm(True, True, 0.99) for _ in range(4)] + [None]
 
   def prenet(self, x, dropout=0.5):
-    # x = jax.nn.relu(self.prenet_fc1(x))
-    # x = hk.dropout(hk.next_rng_key(), dropout, x) if dropout > 0 else x
-    # x = jax.nn.relu(self.prenet_fc2(x))
-    # x = hk.dropout(hk.next_rng_key(), dropout, x) if dropout > 0 else x
+    x = jax.nn.relu(self.prenet_fc1(x))
+    x = hk.dropout(hk.next_rng_key(), dropout, x) if dropout > 0 else x
+    x = jax.nn.relu(self.prenet_fc2(x))
+    x = hk.dropout(hk.next_rng_key(), dropout, x) if dropout > 0 else x
     return x
 
   def upsample(self, x, durations, L):
