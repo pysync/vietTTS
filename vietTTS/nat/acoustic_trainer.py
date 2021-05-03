@@ -48,7 +48,7 @@ def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
   inputs = inputs._replace(mels=inp_mels, durations=n_frames)
   (mel1_hat, mel2_hat), new_aux = (net if is_training else val_net).apply(params, aux, rng, inputs)
   loss = jnp.mean(jnp.square(mel1_hat - mels) + jnp.square(mel2_hat - mels))
-  return (loss, new_aux) if is_training else (loss, mel2_hat, mels)
+  return (loss, new_aux) if is_training else (loss, new_aux, mel2_hat, mels)
 
 
 train_loss_fn = partial(loss_fn, is_training=True)
@@ -111,7 +111,8 @@ def train():
 
     if step % 10 == 0:
       val_batch = next(val_data_iter)
-      val_loss, predicted_mel, gt_mel = val_loss_fn(params, aux, rng, val_batch)
+      val_loss, val_aux, predicted_mel, gt_mel = val_loss_fn(params, aux, rng, val_batch)
+      attn = val_aux['acoustic_model']['attn']
       val_losses.append(val_loss)
 
     if step % 1000 == 0:
@@ -121,11 +122,12 @@ def train():
 
       # saving predicted mels
       plt.figure(figsize=(10, 10))
-      plt.subplot(2, 1, 1)
+      plt.subplot(3, 1, 1)
       plt.imshow(predicted_mel[0].T, origin='lower', aspect='auto')
-
-      plt.subplot(2, 1, 2)
+      plt.subplot(3, 1, 2)
       plt.imshow(gt_mel[0].T, origin='lower', aspect='auto')
+      plt.subplot(3, 1, 3)
+      plt.imshow(attn[0].T, origin='lower', aspect='auto')
       plt.tight_layout()
       plt.savefig(FLAGS.ckpt_dir / f'mel_{step}.png')
       plt.close()

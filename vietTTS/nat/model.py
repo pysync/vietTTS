@@ -24,9 +24,9 @@ class TokenEncoder(hk.Module):
 
   def __call__(self, x, lengths):
     x = self.embed(x)
-    x = hk.dropout(hk.next_rng_key(), self.dropout_rate, x) if self.is_training else x
+    # x = hk.dropout(hk.next_rng_key(), self.dropout_rate, x) if self.is_training else x
     B, L, D = x.shape
-    mask = jnp.arange(0, L)[None, :] < (lengths[:, None] - 1)
+    mask = jnp.arange(0, L)[None, :] >= (lengths[:, None] - 1)
     h0c0_fwd = self.lstm_fwd.initial_state(B)
     new_hx_fwd, new_hxcx_fwd = hk.dynamic_unroll(self.lstm_fwd, x, h0c0_fwd, time_major=False)
     x_bwd, mask_bwd = jax.tree_map(lambda x: jnp.flip(x, axis=1), (x, mask))
@@ -87,6 +87,7 @@ class AcousticModel(hk.Module):
 
     d2 = jnp.square((mid_pos[:, None, :] - ruler[:, :, None])) / 10.
     w = jax.nn.softmax(-d2, axis=-1)
+    hk.set_state('attn', w)
     # import matplotlib.pyplot as plt
     # plt.imshow(w[0].T)
     # plt.savefig('att.png')

@@ -32,7 +32,7 @@ class FLAGS(Namespace):
 
   # ckpt
   ckpt_dir = Path('assets/reinfo/nat')
-  # data_dir = Path('assets/reinfo/nat/content/aligned_reinfo')
+  data_dir = Path('assets/reinfo/data')
   data_dir = Path('test_data')
 
 
