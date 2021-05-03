@@ -22,7 +22,7 @@ def loss_fn(params, aux, rng, x: DurationInput, is_training=True):
     return DurationModel(is_training=is_training)(x)
   durations, aux = net.apply(params, aux, rng, x)
   mask = jnp.arange(0, x.phonemes.shape[1])[None, :] < x.lengths[:, None]
-  masked_loss = jnp.square(durations - x.durations) * mask
+  masked_loss = jnp.abs(durations - x.durations) * mask
   loss = jnp.sum(masked_loss) / jnp.sum(mask)
   return loss, aux
 

@@ -16,18 +16,18 @@ class FLAGS(Namespace):
   acoustic_encoder_dim = 256
 
   # dataset
-  max_phoneme_seq_len = 128
+  max_phoneme_seq_len = 256
   max_wave_len = 1024 * 64 * 2
 
 
   # dsp
-  mel_dim = 160
+  mel_dim = 80
   n_fft = 1024 
   sample_rate = 16000
 
   # training
-  batch_size = 32
-  learning_rate = 1e-4
+  batch_size = 128
+  learning_rate = 1e-3
   max_grad_norm = 1.0
 
   # ckpt
