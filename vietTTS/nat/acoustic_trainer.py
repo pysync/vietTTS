@@ -119,14 +119,14 @@ def train():
       val_batch = next(val_data_iter)
       val_loss, val_aux, predicted_mel, gt_mel = val_loss_fn(params, aux, rng, val_batch)
       val_losses.append(val_loss)
+      attn = jax.device_get(val_aux['acoustic_model']['attn'][0])
+      predicted_mel = jax.device_get(predicted_mel[0])
+      gt_mel = jax.device_get(gt_mel[0])
 
     if step % 1000 == 0:
       loss = sum(losses).item() / len(losses)
       val_loss = sum(val_losses).item() / len(val_losses)
       tr.write(f'step {step}  train loss {loss:.3f}  val loss {val_loss:.3f}')
-      attn = jax.device_get(val_aux['acoustic_model']['attn'][0])
-      predicted_mel = jax.device_get(predicted_mel[0])
-      gt_mel = jax.device_get(gt_mel[0])
 
       # saving predicted mels
       plt.figure(figsize=(10, 10))
