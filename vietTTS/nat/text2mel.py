@@ -38,11 +38,17 @@ def text2tokens(text):
   words = text.strip().lower().split()
   tokens = [0]
   for word in words:
-    if word in lexicon:
+    if word in phonemes:
+      tokens.append(phonemes.index(word))
+    elif word in lexicon:
       p = lexicon[word]
       p = p.split()
       p = [phonemes.index(pp) for pp in p]
       tokens.extend(p)
+    else:
+      for p in word:
+        if p in phonemes:
+          tokens.append(phonemes.index(p))
   tokens.append(1)
   return tokens
 

@@ -16,7 +16,7 @@ class FLAGS(Namespace):
   acoustic_encoder_dim = 256
 
   # dataset
-  max_phoneme_seq_len = 256
+  max_phoneme_seq_len = 128*3
   max_wave_len = 1024 * 64 * 2
 
 
@@ -26,7 +26,7 @@ class FLAGS(Namespace):
   sample_rate = 16000
 
   # training
-  batch_size = 128
+  batch_size = 64
   learning_rate = 1e-3
   max_grad_norm = 1.0
 
