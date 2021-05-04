@@ -124,11 +124,11 @@ def train():
       loss = sum(losses).item() / len(losses)
       val_loss = sum(val_losses).item() / len(val_losses)
       tr.write(f'step {step}  train loss {loss:.3f}  val loss {val_loss:.3f}')
-
-      # saving predicted mels
       attn = jax.device_get(val_aux['acoustic_model']['attn'][0])
       predicted_mel = jax.device_get(predicted_mel[0])
       gt_mel = jax.device_get(gt_mel[0])
+
+      # saving predicted mels
       plt.figure(figsize=(10, 10))
       plt.subplot(3, 1, 1)
       plt.imshow(predicted_mel.T, origin='lower', aspect='auto')
