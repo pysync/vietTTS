@@ -83,14 +83,16 @@ def initial_state(batch):
 
 
 def train():
-  train_data_iter = load_textgrid_wav(FLAGS.data_dir, FLAGS.max_phoneme_seq_len, FLAGS.batch_size, FLAGS.max_wave_len, 'train')
-  val_data_iter = load_textgrid_wav(FLAGS.data_dir, FLAGS.max_phoneme_seq_len, FLAGS.batch_size, FLAGS.max_wave_len, 'val')
+  train_data_iter = load_textgrid_wav(FLAGS.data_dir, FLAGS.max_phoneme_seq_len,
+                                      FLAGS.batch_size, FLAGS.max_wave_len, 'train')
+  val_data_iter = load_textgrid_wav(FLAGS.data_dir, FLAGS.max_phoneme_seq_len,
+                                    FLAGS.batch_size, FLAGS.max_wave_len, 'val')
   melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim)
   batch = next(train_data_iter)
   batch = batch._replace(mels=melfilter(batch.wavs.astype(jnp.float32) / (2**15)))
   params, aux, rng, optim_state = initial_state(batch)
-  losses = Deque(maxlen=1000)
-  val_losses = Deque(maxlen=100)
+  losses = Deque(maxlen=10)
+  val_losses = Deque(maxlen=10)
 
   last_step = -1
 
@@ -116,7 +118,9 @@ def train():
     if step % 10 == 0:
       val_batch = next(val_data_iter)
       val_loss, val_aux, predicted_mel, gt_mel = val_loss_fn(params, aux, rng, val_batch)
-      attn = val_aux['acoustic_model']['attn']
+      attn = jax.device_get(val_aux['acoustic_model']['attn'][0])
+      predicted_mel = jax.device_get(predicted_mel[0])
+      gt_mel = jax.device_get(gt_mel[0])
       val_losses.append(val_loss)
 
     if step % 1000 == 0:
@@ -127,11 +131,11 @@ def train():
       # saving predicted mels
       plt.figure(figsize=(10, 10))
       plt.subplot(3, 1, 1)
-      plt.imshow(predicted_mel[0].T, origin='lower', aspect='auto')
+      plt.imshow(predicted_mel.T, origin='lower', aspect='auto')
       plt.subplot(3, 1, 2)
-      plt.imshow(gt_mel[0].T, origin='lower', aspect='auto')
+      plt.imshow(gt_mel.T, origin='lower', aspect='auto')
       plt.subplot(3, 1, 3)
-      plt.imshow(attn[0].T, origin='lower', aspect='auto')
+      plt.imshow(attn.T, origin='lower', aspect='auto')
       plt.tight_layout()
       plt.savefig(FLAGS.ckpt_dir / f'mel_{step}.png')
       plt.close()
