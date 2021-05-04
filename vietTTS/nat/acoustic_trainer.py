@@ -83,8 +83,8 @@ def initial_state(batch):
 
 
 def train():
-  train_data_iter = load_textgrid_wav(FLAGS.data_dir, FLAGS.max_phoneme_seq_len, 2, FLAGS.max_wave_len, 'train')
-  val_data_iter = load_textgrid_wav(FLAGS.data_dir, FLAGS.max_phoneme_seq_len, 2, FLAGS.max_wave_len, 'val')
+  train_data_iter = load_textgrid_wav(FLAGS.data_dir, FLAGS.max_phoneme_seq_len, FLAGS.batch_size, FLAGS.max_wave_len, 'train')
+  val_data_iter = load_textgrid_wav(FLAGS.data_dir, FLAGS.max_phoneme_seq_len, FLAGS.batch_size, FLAGS.max_wave_len, 'val')
   melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim)
   batch = next(train_data_iter)
   batch = batch._replace(mels=melfilter(batch.wavs.astype(jnp.float32) / (2**15)))
