@@ -4,7 +4,6 @@ import haiku as hk
 import jax
 import jax.numpy as jnp
 from einops.einops import rearrange
-from haiku._src.data_structures import K
 from jax.numpy import ndarray
 from vietTTS.tacotron.config import FLAGS
 
@@ -44,7 +43,11 @@ class DurationModel(hk.Module):
     self.is_training = is_training
     self.encoder = TokenEncoder(FLAGS.vocab_size, FLAGS.duration_lstm_dim,
                                 FLAGS.duration_embed_dropout_rate, is_training)
-    self.projection = hk.Linear(1)
+    self.projection = hk.Sequential([
+        hk.Linear(128),
+        jax.nn.relu,
+        hk.Linear(1)
+    ])
 
   def __call__(self, inputs: DurationInput):
     x = self.encoder(inputs.phonemes, inputs.lengths)
