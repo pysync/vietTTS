@@ -8,4 +8,4 @@ if [ ! -f assets/reinfo/waveRNN/checkpoint_00270000.pickle ]; then
 fi
 echo "Generate audio clip"
 text=`cat assets/truyen_kieu.txt`
-python3 -m vietTTS.synthesizer --text "$text" --output clip.wav --use-nat --lexicon-file assets/reinfo/lexicon.txt --use-nat
+python3 -m vietTTS.synthesizer --text "$text" --output clip.wav --use-nat --lexicon-file assets/reinfo/lexicon.txt --use-nat --silence-duration 0.2

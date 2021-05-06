@@ -70,9 +70,14 @@ def predict_mel(tokens, durations):
   return predict_fn(params, aux, rng, tokens, durations, n_frames)[0]
 
 
-def text2mel(text: str, lexicon_fn = FLAGS.data_dir / 'lexicon.txt'):
+def text2mel(text: str, lexicon_fn=FLAGS.data_dir / 'lexicon.txt', silence_duration: float = -1.):
   tokens = text2tokens(text, lexicon_fn)
   durations = predict_duration(tokens)
+  durations = jnp.where(
+      np.array(tokens)[None, :] <= 2,
+      jnp.clip(durations, a_min=silence_duration * 10, a_max=10),
+      durations
+  )
   mels = predict_mel(tokens, durations)
   return mels
 
