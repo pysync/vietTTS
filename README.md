@@ -13,6 +13,13 @@ cd vietTTS
 pip3 install -e .
 ```
 
+Quick start using pretrained models
+----------------------------------
+```sh
+bash ./script/quick_start.sh
+```
+
+
 Download reinfo dataset
 -----------------------
 

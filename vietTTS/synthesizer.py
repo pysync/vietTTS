@@ -10,11 +10,23 @@ parser.add_argument('--text', type=str)
 parser.add_argument('--output', default='clip.wav', type=Path)
 parser.add_argument('--sample-rate', default=16000, type=int)
 parser.add_argument('--use-nat', default=False, action='store_true')
+parser.add_argument('--lexicon-file', default=None)
 args = parser.parse_args()
+
+
+def nat_normalize_text(text):
+  text = text.lower().strip()
+  import re
+  text = re.sub(r'[\n.,:]+', ' sp ', text)
+  text = re.sub('[ ]+', ' ', text)
+  return text.strip()
+
 
 if args.use_nat:
   from .nat.text2mel import text2mel
-  mel = text2mel(args.text)
+  text = nat_normalize_text(args.text)
+  print('Normalized text input:', text)
+  mel = text2mel(args.text, args.lexicon_file)
 else:
   from .tacotron.text2mel import text2mel
   mel = text2mel(args.text)

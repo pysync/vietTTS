@@ -31,9 +31,9 @@ def predict_duration(tokens):
   return forward_fn(dic['params'], dic['aux'], dic['rng'], x)[0]
 
 
-def text2tokens(text):
-  phonemes = load_phonemes_set_from_lexicon_file(FLAGS.data_dir / 'lexicon.txt')
-  lexicon = load_lexicon(FLAGS.data_dir / 'lexicon.txt')
+def text2tokens(text, lexicon_fn):
+  phonemes = load_phonemes_set_from_lexicon_file(lexicon_fn)
+  lexicon = load_lexicon(lexicon_fn)
 
   words = text.strip().lower().split()
   tokens = [0]
@@ -71,8 +71,8 @@ def predict_mel(tokens, durations):
   return predict_fn(params, aux, rng, tokens, durations, n_frames)[0]
 
 
-def text2mel(text: str):
-  tokens = text2tokens(text)
+def text2mel(text: str, lexicon_fn = FLAGS.data_dir / 'lexicon.txt'):
+  tokens = text2tokens(text, lexicon_fn)
   durations = predict_duration(tokens)
   mels = predict_mel(tokens, durations)
   return mels
