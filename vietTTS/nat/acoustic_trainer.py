@@ -13,7 +13,7 @@ from vietTTS.nat.config import AcousticInput
 from vietTTS.tacotron.dsp import MelFilter
 
 from .config import FLAGS, AcousticInput
-from .data_loader import load_textgrid_wav
+from .data_loader import load_textgrid_mel
 from .model import AcousticModel
 from .utils import print_flags
 
@@ -28,11 +28,9 @@ def val_net(x): return AcousticModel(is_training=False)(x)
 
 @jax.jit
 def val_forward(params, aux, rng, inputs: AcousticInput):
-  melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim)
-  mels = melfilter(inputs.wavs.astype(jnp.float32) / (2**15))
   B, L, D = mels.shape
+  mels = inputs.mels
   inp_mels = jnp.concatenate((jnp.zeros((B, 1, D), dtype=jnp.float32), mels[:, :-1, :]), axis=1)
-
   n_frames = inputs.durations / 10 * FLAGS.sample_rate / (FLAGS.n_fft//4)
   inputs = inputs._replace(mels=inp_mels, durations=n_frames)
   (mel1_hat, mel2_hat), new_aux = val_net.apply(params, aux, rng, inputs)
@@ -40,8 +38,7 @@ def val_forward(params, aux, rng, inputs: AcousticInput):
 
 
 def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
-  melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim)
-  mels = melfilter(inputs.wavs.astype(jnp.float32) / (2**15))
+  mels = inputs.mels
   B, L, D = mels.shape
   inp_mels = jnp.concatenate((jnp.zeros((B, 1, D), dtype=jnp.float32), mels[:, :-1, :]), axis=1)
   n_frames = inputs.durations / 10 * FLAGS.sample_rate / (FLAGS.n_fft//4)
@@ -50,7 +47,7 @@ def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
   loss1 = (jnp.square(mel1_hat - mels) + jnp.square(mel2_hat - mels)) / 2
   loss2 = (jnp.abs(mel1_hat - mels) + jnp.abs(mel2_hat - mels)) / 2
   loss = jnp.mean((loss1 + loss2)/2, axis=-1)
-  mask = jnp.arange(0, L)[None, :] < (inputs.wav_lengths // (FLAGS.n_fft // 4))[:, None]
+  mask = jnp.arange(0, L)[None, :] < inputs.mels_lengths[:, None]
   loss = jnp.sum(loss * mask) / jnp.sum(mask)
   return (loss, new_aux) if is_training else (loss, new_aux, mel2_hat, mels)
 
@@ -83,13 +80,11 @@ def initial_state(batch):
 
 
 def train():
-  train_data_iter = load_textgrid_wav(FLAGS.data_dir, FLAGS.max_phoneme_seq_len,
-                                      FLAGS.batch_size, FLAGS.max_wave_len, 'train')
-  val_data_iter = load_textgrid_wav(FLAGS.data_dir, FLAGS.max_phoneme_seq_len,
-                                    FLAGS.batch_size, FLAGS.max_wave_len, 'val')
-  melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim)
+  train_data_iter = load_textgrid_mel(FLAGS.data_dir, FLAGS.max_phoneme_seq_len,
+                                      FLAGS.batch_size, FLAGS.max_mel_len, 'train')
+  val_data_iter = load_textgrid_mel(FLAGS.data_dir, FLAGS.max_phoneme_seq_len,
+                                    FLAGS.batch_size, FLAGS.max_mel_len, 'val')
   batch = next(train_data_iter)
-  batch = batch._replace(mels=melfilter(batch.wavs.astype(jnp.float32) / (2**15)))
   params, aux, rng, optim_state = initial_state(batch)
   losses = Deque(maxlen=10)
   val_losses = Deque(maxlen=10)

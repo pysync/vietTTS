@@ -108,3 +108,46 @@ def load_textgrid_wav(data_dir: Path, token_seq_len: int, batch_size, pad_wav_le
         wav_lengths = np.array(wav_lengths, dtype=np.int32)
         yield AcousticInput(ps, lengths, ds, wavs, wav_lengths, None)
         batch = []
+
+
+def load_textgrid_mel(data_dir: Path, token_seq_len: int, batch_size, pad_mel_len, mode: str):
+  tg_files = sorted(data_dir.glob('*.TextGrid'))
+  random.Random(42).shuffle(tg_files)
+  L = len(tg_files) * 8 // 10
+  assert mode in ['train', 'val']
+  phonemes = load_phonemes_set_from_lexicon_file(data_dir / 'lexicon.txt')
+  if mode == 'train':
+    tg_files = tg_files[:L]
+  if mode == 'val':
+    tg_files = tg_files[L:]
+
+  data = []
+  for fn in tg_files:
+    ps, ds = zip(*load_textgrid(fn))
+    ps = [phonemes.index(p) for p in ps]
+    l = len(ps)
+    ps = pad_seq(ps, token_seq_len, 0)
+    ds = pad_seq(ds, token_seq_len, 0)
+
+    mel_file = data_dir / f'{fn.stem}.mel'
+    y = np.fromfile(mel_file, dtype=np.float32).reshape((-1, 160))
+    if len(y) > pad_mel_len:
+      y = y[:pad_mel_len]
+    mel_length = y.shape[0]
+    y = np.pad(y, ((0, pad_mel_len - len(y)), (0, 0)))
+    data.append((ps, ds, l, y, mel_length))
+
+  batch = []
+  while True:
+    random.shuffle(data)
+    for e in data:
+      batch.append(e)
+      if len(batch) == batch_size:
+        ps, ds, lengths, mels, mel_lengths = zip(*batch)
+        ps = np.array(ps, dtype=np.int32)
+        ds = np.array(ds, dtype=np.float32) * 10
+        lengths = np.array(lengths, dtype=np.int32)
+        mels = np.array(mels)
+        mels_lengths = np.array(mel_lengths, dtype=np.int32)
+        yield AcousticInput(ps, lengths, ds, mels, mels_lengths)
+        batch = []
