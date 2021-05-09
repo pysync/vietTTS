@@ -7,22 +7,21 @@ from jax.numpy import ndarray
 
 
 class FLAGS(Namespace):
-  duration_lstm_dim = 256
+  duration_lstm_dim = 128
   vocab_size = 256
   duration_embed_dropout_rate = 0.5
   num_training_steps = 100_000
   postnet_dim = 512
-  acoustic_decoder_dim = 512
-  acoustic_encoder_dim = 256
+  acoustic_decoder_dim = 256
+  acoustic_encoder_dim = 128
 
   # dataset
   max_phoneme_seq_len = 128*3
   max_wave_len = 1024 * 64 * 2
 
-
   # dsp
   mel_dim = 80
-  n_fft = 1024 
+  n_fft = 1024
   sample_rate = 16000
 
   # training
@@ -40,6 +39,7 @@ class DurationInput(NamedTuple):
   phonemes: ndarray
   lengths: ndarray
   durations: ndarray
+
 
 class AcousticInput(NamedTuple):
   phonemes: ndarray

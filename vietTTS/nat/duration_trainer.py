@@ -54,7 +54,7 @@ def update(params, aux, rng, optim_state, inputs: DurationInput):
 
 def initial_state(batch):
   rng = jax.random.PRNGKey(42)
-  params, aux = hk.transform_with_state(lambda x: DurationModel(False)(x)).init(rng, batch)
+  params, aux = hk.transform_with_state(lambda x: DurationModel(True)(x)).init(rng, batch)
   optim_state = optimizer.init(params)
   return params, aux, rng, optim_state
 

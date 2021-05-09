@@ -17,12 +17,23 @@ class TokenEncoder(hk.Module):
     super().__init__()
     self.is_training = is_training
     self.embed = hk.Embed(vocab_size, lstm_dim)
+    self.conv1 = hk.Conv1D(lstm_dim, 3, padding='SAME')
+    self.conv2 = hk.Conv1D(lstm_dim, 3, padding='SAME')
+    self.conv3 = hk.Conv1D(lstm_dim, 3, padding='SAME')
+    self.bn1 = hk.BatchNorm(True, True, 0.99)
+    self.bn2 = hk.BatchNorm(True, True, 0.99)
+    self.bn3 = hk.BatchNorm(True, True, 0.99)
     self.lstm_fwd = hk.LSTM(lstm_dim)
     self.lstm_bwd = hk.ResetCore(hk.LSTM(lstm_dim))
     self.dropout_rate = dropout_rate
 
   def __call__(self, x, lengths):
     x = self.embed(x)
+    x = jax.nn.relu(self.bn1(self.conv1(x), is_training=self.is_training))
+    x = hk.dropout(hk.next_rng_key(), self.dropout_rate, x) if self.is_training else x
+    x = jax.nn.relu(self.bn2(self.conv2(x), is_training=self.is_training))
+    x = hk.dropout(hk.next_rng_key(), self.dropout_rate, x) if self.is_training else x
+    x = jax.nn.relu(self.bn3(self.conv3(x), is_training=self.is_training))
     x = hk.dropout(hk.next_rng_key(), self.dropout_rate, x) if self.is_training else x
     B, L, D = x.shape
     mask = jnp.arange(0, L)[None, :] >= (lengths[:, None] - 1)
@@ -44,15 +55,15 @@ class DurationModel(hk.Module):
     self.encoder = TokenEncoder(FLAGS.vocab_size, FLAGS.duration_lstm_dim,
                                 FLAGS.duration_embed_dropout_rate, is_training)
     self.projection = hk.Sequential([
-        hk.Linear(128),
-        jax.nn.relu,
-        hk.Linear(1)
+        hk.Linear(FLAGS.duration_lstm_dim),
+        jax.nn.gelu,
+        hk.Linear(1),
     ])
 
   def __call__(self, inputs: DurationInput):
     x = self.encoder(inputs.phonemes, inputs.lengths)
     x = jnp.squeeze(self.projection(x), axis=-1)
-    x = jax.nn.relu(x)
+    x = jax.nn.softplus(x)
     return x
 
 
