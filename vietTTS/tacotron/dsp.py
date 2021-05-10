@@ -99,8 +99,8 @@ def batched_stft(y: ndarray,
 class MelFilter:
   """Convert waveform to mel spectrogram."""
 
-  def __init__(self, sample_rate: int, n_fft: int, n_mels: int):
-    self.melfb = jax.device_put(librosa.filters.mel(sr=sample_rate, n_fft=n_fft, n_mels=n_mels))
+  def __init__(self, sample_rate: int, n_fft: int, n_mels: int, fmin=0.0, fmax=8000):
+    self.melfb = jax.device_put(librosa.filters.mel(sr=sample_rate, n_fft=n_fft, n_mels=n_mels, fmin=fmin, fmax=fmax))
     self.n_fft = n_fft
 
   def __call__(self, y: ndarray) -> ndarray:

@@ -23,6 +23,8 @@ class FLAGS(Namespace):
   mel_dim = 80
   n_fft = 1024
   sample_rate = 16000
+  fmin = 0.0
+  fmax = 8000
 
   # training
   batch_size = 64

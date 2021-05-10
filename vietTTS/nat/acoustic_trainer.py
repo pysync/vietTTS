@@ -28,7 +28,7 @@ def val_net(x): return AcousticModel(is_training=False)(x)
 
 @jax.jit
 def val_forward(params, aux, rng, inputs: AcousticInput):
-  melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim)
+  melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim, FLAGS.fmin, FLAGS.fmax)
   mels = melfilter(inputs.wavs.astype(jnp.float32) / (2**15))
   B, L, D = mels.shape
   inp_mels = jnp.concatenate((jnp.zeros((B, 1, D), dtype=jnp.float32), mels[:, :-1, :]), axis=1)
@@ -40,7 +40,7 @@ def val_forward(params, aux, rng, inputs: AcousticInput):
 
 
 def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
-  melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim)
+  melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim, FLAGS.fmin, FLAGS.fmax)
   mels = melfilter(inputs.wavs.astype(jnp.float32) / (2**15))
   B, L, D = mels.shape
   inp_mels = jnp.concatenate((jnp.zeros((B, 1, D), dtype=jnp.float32), mels[:, :-1, :]), axis=1)
@@ -87,7 +87,7 @@ def train():
                                       FLAGS.batch_size, FLAGS.max_wave_len, 'train')
   val_data_iter = load_textgrid_wav(FLAGS.data_dir, FLAGS.max_phoneme_seq_len,
                                     FLAGS.batch_size, FLAGS.max_wave_len, 'val')
-  melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim)
+  melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim, FLAGS.fmin, FLAGS.fmax)
   batch = next(train_data_iter)
   batch = batch._replace(mels=melfilter(batch.wavs.astype(jnp.float32) / (2**15)))
   params, aux, rng, optim_state = initial_state(batch)

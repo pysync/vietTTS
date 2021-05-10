@@ -1,5 +1,3 @@
-from re import S
-
 import haiku as hk
 import jax
 import jax.numpy as jnp
@@ -9,7 +7,7 @@ LRELU_SLOPE = 0.1
 
 def get_padding(kernel_size, dilation=1):
   p = int((kernel_size * dilation - dilation) / 2)
-  return ( (p, p), )
+  return ((p, p), )
 
 
 class ResBlock1(hk.Module):
@@ -18,12 +16,13 @@ class ResBlock1(hk.Module):
 
     self.h = h
     self.convs1 = [
-        hk.Conv1D(channels, kernel_size, 1, rate=dilation[i], padding=get_padding(kernel_size, dilation[i]), name=f'convs1_{i}', data_format='NCW')
+        hk.Conv1D(channels, kernel_size, 1, rate=dilation[i], padding=get_padding(
+            kernel_size, dilation[i]), name=f'convs1_{i}')
         for i in range(3)
     ]
 
     self.convs2 = [
-        hk.Conv1D(channels, kernel_size, 1, rate=1, padding=get_padding(kernel_size, 1), name=f"convs2_{i}", data_format='NCW')
+        hk.Conv1D(channels, kernel_size, 1, rate=1, padding=get_padding(kernel_size, 1), name=f"convs2_{i}")
         for i in range(3)
     ]
 
@@ -42,7 +41,7 @@ class ResBlock2(hk.Module):
     super().__init__(name=name)
     self.h = h
     self.convs = [
-        hk.Conv1D(channels, kernel_size, 1, rate=dilation[i], padding=get_padding(kernel_size, dilation[i]), data_format='NCW')
+        hk.Conv1D(channels, kernel_size, 1, rate=dilation[i], padding=get_padding(kernel_size, dilation[i]))
         for i in range(2)
     ]
 
@@ -60,12 +59,13 @@ class Generator(hk.Module):
     self.h = h
     self.num_kernels = len(h.resblock_kernel_sizes)
     self.num_upsamples = len(h.upsample_rates)
-    self.conv_pre = hk.Conv1D(h.upsample_initial_channel, 7, 1, padding=((3,3),), data_format='NCW')
+    self.conv_pre = hk.Conv1D(h.upsample_initial_channel, 7, 1, padding=((3, 3),))
     resblock = ResBlock1 if h.resblock == '1' else ResBlock2
     self.ups = []
     for i, (u, k) in enumerate(zip(h.upsample_rates, h.upsample_kernel_sizes)):
       self.ups.append(
-          hk.Conv1DTranspose(h.upsample_initial_channel//(2**(i+1)), kernel_shape=k, stride=u, padding='SAME', name=f"ups_{i}", data_format='NCW')
+          hk.Conv1DTranspose(h.upsample_initial_channel//(2**(i+1)), kernel_shape=k,
+                             stride=u, padding='SAME', name=f"ups_{i}")
       )
 
     self.resblocks = []
@@ -74,13 +74,12 @@ class Generator(hk.Module):
       ch = h.upsample_initial_channel // (2**(i+1))
       for j, (k, d) in enumerate(zip(h.resblock_kernel_sizes, h.resblock_dilation_sizes)):
         self.resblocks.append(resblock(h, ch, k, d, name=f'res_block1_{len(self.resblocks)}'))
-    self.conv_post = hk.Conv1D(1, 7, 1, padding=((3, 3),), data_format='NCW')
+    self.conv_post = hk.Conv1D(1, 7, 1, padding=((3, 3),))
 
   def __call__(self, x):
     x = self.conv_pre(x)
     for i in range(self.num_upsamples):
       x = jax.nn.leaky_relu(x, LRELU_SLOPE)
-      # import pdb; pdb.set_trace()
 
       x = self.ups[i](x)
       xs = None
