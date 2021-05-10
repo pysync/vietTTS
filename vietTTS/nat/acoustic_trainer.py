@@ -91,8 +91,8 @@ def train():
   batch = next(train_data_iter)
   batch = batch._replace(mels=melfilter(batch.wavs.astype(jnp.float32) / (2**15)))
   params, aux, rng, optim_state = initial_state(batch)
-  losses = Deque(maxlen=10)
-  val_losses = Deque(maxlen=10)
+  losses = Deque(maxlen=1000)
+  val_losses = Deque(maxlen=100)
 
   last_step = -1
 
