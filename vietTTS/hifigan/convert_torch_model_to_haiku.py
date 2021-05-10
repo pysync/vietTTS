@@ -9,6 +9,7 @@ import numpy as np
 import torch
 
 from .torch_model import Generator
+from .config import FLAGS
 
 
 class AttrDict(dict):
@@ -56,8 +57,8 @@ def convert_to_haiku(a, h, device):
         hk_map[a]['w'] = np.swapaxes(b.numpy(), 0, 2)
       else:
         hk_map[a]['w'] = b.numpy()
-  import pickle
-  with open('hk_hifi.pickle', 'wb') as f:
+
+  with open(FLAGS.ckpt_dir / 'hk_hifi.pickle', 'wb') as f:
     pickle.dump(hk_map, f)
 
 
