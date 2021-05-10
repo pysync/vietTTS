@@ -49,7 +49,7 @@ def text2tokens(text, lexicon_fn):
       for p in word:
         if p in phonemes:
           tokens.append(phonemes.index(p))
-  tokens.append(0) # silence
+  tokens.append(0)  # silence
   return tokens
 
 
@@ -95,3 +95,5 @@ if __name__ == '__main__':
   plt.imshow(mel[0].T, origin='lower', aspect='auto')
   plt.savefig(str(args.output))
   plt.close()
+  mel = jax.device_get(mel)
+  mel.tofile('clip.mel')
