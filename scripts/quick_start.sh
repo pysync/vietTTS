@@ -1,4 +1,4 @@
-if [ ! -f assets/infore/waveRNN/checkpoint_00270000.pickle ]; then
+if [ ! -f assets/infore/waveRNN/checkpoint_00300000.pickle ]; then
   pip3 install gdown
   echo "Downloading models..."
   mkdir -p -p assets/infore/{nat,waveRNN}
