@@ -83,7 +83,7 @@ def make_optimizer(lr):
 optimizer = make_optimizer(FLAGS.learning_rate)
 
 
-@jax.jit
+@partial(jax.jit, static_argnums=[5])
 def update(params, aux, rng, optim_state, inputs, schedule):
   rng, new_rng = jax.random.split(rng)
   (loss, (vae_loss, new_aux)), grads = loss_vag(params, aux, rng, inputs, schedule.beta)
