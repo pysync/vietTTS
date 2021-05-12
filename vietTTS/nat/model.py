@@ -176,14 +176,14 @@ class AcousticModel(hk.Module):
     mask2 = ruler <= end_frame[:, None, :]
     attn = jnp.logical_and(mask1, mask2)
     mels = jnp.einsum('BLT,BLD->BTD', attn, mels)
-    mels = mels / (jnp.sum(attn, axis=1)[:, :, None])
+    mels = mels / (jnp.sum(attn, axis=1)[:, :, None] + 1e-3)
     return mels
 
   def vae(self, mels):
     params = self.vae_projection(mels)
     mean, logstd = jnp.split(params, 2, axis=-1)
     noise = jax.random.normal(hk.next_rng_key(), shape=mean.shape)
-    v = noise = noise * jnp.exp(logstd) + mean
+    v = noise * jnp.exp(logstd) + mean
     return v, (mean, logstd)
 
   def __call__(self, inputs: AcousticInput):
