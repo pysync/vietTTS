@@ -12,8 +12,9 @@ class FLAGS(Namespace):
   duration_embed_dropout_rate = 0.5
   num_training_steps = 100_000
   postnet_dim = 512
-  acoustic_decoder_dim = 1024
+  acoustic_decoder_dim = 256
   acoustic_encoder_dim = 256
+  vae_dim = 8
 
   # dataset
   max_phoneme_seq_len = 128*3
@@ -27,7 +28,7 @@ class FLAGS(Namespace):
   fmax = 8000
 
   # training
-  batch_size = 64
+  batch_size = 1
   learning_rate = 1e-3
   max_grad_norm = 1.0
 

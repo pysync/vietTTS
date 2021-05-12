@@ -26,17 +26,17 @@ def net(x): return AcousticModel(is_training=True)(x)
 def val_net(x): return AcousticModel(is_training=False)(x)
 
 
-@jax.jit
-def val_forward(params, aux, rng, inputs: AcousticInput):
-  melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim, FLAGS.fmin, FLAGS.fmax)
-  mels = melfilter(inputs.wavs.astype(jnp.float32) / (2**15))
-  B, L, D = mels.shape
-  inp_mels = jnp.concatenate((jnp.zeros((B, 1, D), dtype=jnp.float32), mels[:, :-1, :]), axis=1)
+# @jax.jit
+# def val_forward(params, aux, rng, inputs: AcousticInput):
+#   melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim, FLAGS.fmin, FLAGS.fmax)
+#   mels = melfilter(inputs.wavs.astype(jnp.float32) / (2**15))
+#   B, L, D = mels.shape
+#   inp_mels = jnp.concatenate((jnp.zeros((B, 1, D), dtype=jnp.float32), mels[:, :-1, :]), axis=1)
 
-  n_frames = inputs.durations / 10 * FLAGS.sample_rate / (FLAGS.n_fft//4)
-  inputs = inputs._replace(mels=inp_mels, durations=n_frames)
-  (mel1_hat, mel2_hat), new_aux = val_net.apply(params, aux, rng, inputs)
-  return mel1_hat, mel2_hat
+#   n_frames = inputs.durations / 10 * FLAGS.sample_rate / (FLAGS.n_fft//4)
+#   inputs = inputs._replace(mels=inp_mels, durations=n_frames)
+#   (mel1_hat, mel2_hat), new_aux = val_net.apply(params, aux, rng, inputs)
+#   return mel1_hat, mel2_hat
 
 
 def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
@@ -46,13 +46,28 @@ def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
   inp_mels = jnp.concatenate((jnp.zeros((B, 1, D), dtype=jnp.float32), mels[:, :-1, :]), axis=1)
   n_frames = inputs.durations / 10 * FLAGS.sample_rate / (FLAGS.n_fft//4)
   inputs = inputs._replace(mels=inp_mels, durations=n_frames)
-  (mel1_hat, mel2_hat), new_aux = (net if is_training else val_net).apply(params, aux, rng, inputs)
-  loss1 = (jnp.square(mel1_hat - mels) + jnp.square(mel2_hat - mels)) / 2
-  loss2 = (jnp.abs(mel1_hat - mels) + jnp.abs(mel2_hat - mels)) / 2
-  loss = jnp.mean((loss1 + loss2)/2, axis=-1)
+  (mel_stack, vae_params), new_aux = (net if is_training else val_net).apply(params, aux, rng, inputs)
+
+  loss = 0.0
+  for mel_hat in mel_stack:
+    loss = loss + jnp.mean(jnp.abs(mel_hat - mels), axis=-1)
+  loss = loss / len(mel_stack)
+
+  beta = 1.0
+  # D_KL(Q(z|X) || P(z|X)); calculate in closed form as both dist. are Gaussian
+  mu, log_std = vae_params
+  log_sigma = 2 * log_std
+  dkl = 0.5 * jnp.sum(jnp.exp(log_sigma) + jnp.square(mu) - 1. - log_sigma, axis=-1)
+
   mask = jnp.arange(0, L)[None, :] < (inputs.wav_lengths // (FLAGS.n_fft // 4))[:, None]
   loss = jnp.sum(loss * mask) / jnp.sum(mask)
-  return (loss, new_aux) if is_training else (loss, new_aux, mel2_hat, mels)
+
+  mask = jnp.arange(0, dkl.shape[1])[None, :] < inputs.lengths[:, None]
+  vae_loss = jnp.sum(dkl * mask) / jnp.sum(mask)
+
+  loss = loss + vae_loss * beta
+
+  return (loss, (vae_loss, new_aux)) if is_training else (loss, vae_loss, new_aux, mel_stack[-1], mels)
 
 
 train_loss_fn = partial(loss_fn, is_training=True)
@@ -69,14 +84,16 @@ optimizer = optax.chain(
 @jax.jit
 def update(params, aux, rng, optim_state, inputs):
   rng, new_rng = jax.random.split(rng)
-  (loss, new_aux), grads = loss_vag(params, aux, rng, inputs)
+  (loss, (vae_loss, new_aux)), grads = loss_vag(params, aux, rng, inputs)
   updates, new_optim_state = optimizer.update(grads, optim_state, params)
   new_params = optax.apply_updates(updates, params)
-  return loss, (new_params, new_aux, new_rng, new_optim_state)
+  return (loss, vae_loss), (new_params, new_aux, new_rng, new_optim_state)
 
 
 def initial_state(batch):
   rng = jax.random.PRNGKey(42)
+  n_frames = batch.durations / 10 * FLAGS.sample_rate / (FLAGS.n_fft//4)
+  batch = batch._replace(durations=n_frames)
   params, aux = hk.transform_with_state(lambda x: AcousticModel(True)(x)).init(rng, batch)
   optim_state = optimizer.init(params)
   return params, aux, rng, optim_state
@@ -112,12 +129,12 @@ def train():
   )
   for step in tr:
     batch = next(train_data_iter)
-    loss, (params, aux, rng, optim_state) = update(params, aux, rng, optim_state, batch)
+    (loss, vae_loss), (params, aux, rng, optim_state) = update(params, aux, rng, optim_state, batch)
     losses.append(loss)
 
     if step % 10 == 0:
       val_batch = next(val_data_iter)
-      val_loss, val_aux, predicted_mel, gt_mel = val_loss_fn(params, aux, rng, val_batch)
+      val_loss, val_vae_loss, val_aux, predicted_mel, gt_mel = val_loss_fn(params, aux, rng, val_batch)
       val_losses.append(val_loss)
       attn = jax.device_get(val_aux['acoustic_model']['attn'][0])
       predicted_mel = jax.device_get(predicted_mel[0])
@@ -126,7 +143,8 @@ def train():
     if step % 1000 == 0:
       loss = sum(losses).item() / len(losses)
       val_loss = sum(val_losses).item() / len(val_losses)
-      tr.write(f'step {step}  train loss {loss:.3f}  val loss {val_loss:.3f}')
+      vae_loss = vae_loss.item()
+      tr.write(f'step {step}  train loss {loss:.3f}  val loss {val_loss:.3f}  vae loss {vae_loss:.3f}')
 
       # saving predicted mels
       plt.figure(figsize=(10, 10))

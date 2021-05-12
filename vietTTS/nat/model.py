@@ -1,13 +1,77 @@
 from typing import NamedTuple, Optional, Tuple
 
+import einops
 import haiku as hk
 import jax
 import jax.numpy as jnp
+import numpy as np
 from einops.einops import rearrange
 from jax.numpy import ndarray
 from vietTTS.tacotron.config import FLAGS
 
 from .config import FLAGS, AcousticInput, DurationInput
+
+
+def get_lightconv_fn(kernel_size, num_heads):
+  def f(x): return hk.Conv1D(num_heads, kernel_size, 1, 1, 'SAME', False, feature_group_count=num_heads)(x)
+  return lambda w, x: hk.without_apply_rng(hk.transform(f)).apply({'conv1_d': {'w': w}}, x)
+
+
+class LightConv(hk.Module):
+  def __init__(self, dim, kernel_size, num_heads=8, dropout_rate=0.1, is_training=True):
+    super().__init__()
+    self.kernel_size = kernel_size
+    self.num_heads = num_heads
+    self.dropout_rate = dropout_rate
+    self.is_training = is_training
+    self.conv = get_lightconv_fn(kernel_size, num_heads)
+
+  def __call__(self, x):
+    B, W, C = x.shape
+    R = C // self.num_heads
+    x = einops.rearrange(x, 'B W (H R) -> B W H R', H=self.num_heads)
+    w_shape = (self.kernel_size, 1, self.num_heads)
+    fan_in_shape = np.prod(w_shape[:-1])
+    stddev = 1. / np.sqrt(fan_in_shape)
+    w_init = hk.initializers.TruncatedNormal(stddev=stddev)
+    w = w = hk.get_parameter("w", w_shape, x.dtype, init=w_init)
+    w = jax.nn.softmax(w, axis=0)
+    if self.is_training:
+      w = hk.dropout(hk.next_rng_key(), self.dropout_rate, w)
+    x = hk.vmap(self.conv, in_axes=(None, 3), out_axes=3)(w, x)
+    x = einops.rearrange(x, 'B W H R -> B W (H R)', H=self.num_heads)
+    return x
+
+
+class LConvBlock(hk.Module):
+  def __init__(self, dim, kernel_size, num_heads=8, dropout_rate=0.1, is_training=True):
+    super().__init__()
+
+    self.glu_fc = hk.Linear(dim*2)
+    self.lconv = LightConv(dim, kernel_size, num_heads, dropout_rate, is_training)
+    self.layernorm1 = hk.LayerNorm(1, True, True)
+
+    self.ff_fc1 = hk.Linear(dim*4)
+    self.ff_fc2 = hk.Linear(dim)
+
+    self.layernorm2 = hk.LayerNorm(1, True, True)
+
+  def __call__(self, x):
+    x_res = x
+    x = self.glu_fc(x)
+    x1, x2 = jnp.split(x, 2, axis=-1)
+    x = x1 * jax.nn.sigmoid(x2)
+    x = self.lconv(x)
+    x = self.layernorm1(x + x_res)
+
+    x_res = x
+
+    x = self.ff_fc1(x)
+    x = jax.nn.relu(x)
+    x = self.ff_fc2(x)
+
+    x = self.layernorm2(x + x_res)
+    return x
 
 
 class TokenEncoder(hk.Module):
@@ -74,25 +138,19 @@ class AcousticModel(hk.Module):
     super().__init__()
     self.is_training = is_training
     self.encoder = TokenEncoder(FLAGS.vocab_size, FLAGS.acoustic_encoder_dim, 0.5, is_training)
-    self.decoder = hk.deep_rnn_with_skip_connections([
-        hk.LSTM(FLAGS.acoustic_decoder_dim),
-        hk.LSTM(FLAGS.acoustic_decoder_dim)
-    ])
-    self.projection = hk.Linear(FLAGS.mel_dim)
+    self.residual_stack = [
+        LConvBlock(FLAGS.acoustic_decoder_dim, 17, 8, 0.1, is_training=is_training)
+        for _ in range(5)
+    ]
+    self.residual_stack.insert(0, hk.Linear(FLAGS.acoustic_decoder_dim))
 
-    # prenet
-    self.prenet_fc1 = hk.Linear(256, with_bias=True)
-    self.prenet_fc2 = hk.Linear(256, with_bias=True)
-    # posnet
-    self.postnet_convs = [hk.Conv1D(FLAGS.postnet_dim, 5) for _ in range(4)] + [hk.Conv1D(FLAGS.mel_dim, 5)]
-    self.postnet_bns = [hk.BatchNorm(True, True, 0.99) for _ in range(4)] + [None]
-
-  def prenet(self, x, dropout=0.5):
-    x = jax.nn.relu(self.prenet_fc1(x))
-    x = hk.dropout(hk.next_rng_key(), dropout, x) if dropout > 0 else x
-    x = jax.nn.relu(self.prenet_fc2(x))
-    x = hk.dropout(hk.next_rng_key(), dropout, x) if dropout > 0 else x
-    return x
+    self.decoder_stack = [
+        LConvBlock(FLAGS.acoustic_decoder_dim, 17, 8, 0.1, is_training=is_training)
+        for _ in range(6)
+    ]
+    self.upsample_projection = hk.Linear(FLAGS.acoustic_decoder_dim)
+    self.decoder_projection = [hk.Linear(FLAGS.mel_dim) for _ in range(6)]
+    self.vae_projection = hk.Linear(FLAGS.vae_dim * 2)
 
   def upsample(self, x, durations, L):
     ruler = jnp.arange(0, L)[None, :]  # B, L
@@ -102,62 +160,45 @@ class AcousticModel(hk.Module):
     d2 = jnp.square((mid_pos[:, None, :] - ruler[:, :, None])) / 10.
     w = jax.nn.softmax(-d2, axis=-1)
     hk.set_state('attn', w)
-    # import matplotlib.pyplot as plt
-    # plt.imshow(w[0].T)
-    # plt.savefig('att.png')
-    # plt.close()
     x = jnp.einsum('BLT,BTD->BLD', w, x)
     return x
 
-  def postnet(self, mel: ndarray) -> ndarray:
-    x = mel
-    for conv, bn in zip(self.postnet_convs, self.postnet_bns):
-      x = conv(x)
-      if bn is not None:
-        x = bn(x, is_training=self.is_training)
-        x = jnp.tanh(x)
-      x = hk.dropout(hk.next_rng_key(), 0.5, x) if self.is_training else x
-    return x
+  def residual_encoder(self, durations, mels):
+    for f in self.residual_stack:
+      mels = f(mels)
+    B, L, D = mels.shape
+    ruler = jnp.arange(0, L)[None, :, None]
+    end_frame = jnp.cumsum(durations, axis=1)
+    start_frame = end_frame - durations
+    end_frame = jnp.ceil(end_frame)
+    start_frame = jnp.floor(start_frame)
+    mask1 = ruler >= start_frame[:, None, :]
+    mask2 = ruler <= end_frame[:, None, :]
+    attn = jnp.logical_and(mask1, mask2)
+    mels = jnp.einsum('BLT,BLD->BTD', attn, mels)
+    mels = mels / (jnp.sum(attn, axis=1)[:, :, None])
+    return mels
 
-  def inference(self, tokens, durations, n_frames):
-    B, L = tokens.shape
-    lengths = jnp.array([L], dtype=jnp.int32)
-    x = self.encoder(tokens, lengths)
-    x = self.upsample(x, durations, n_frames)
-
-    def loop_fn(inputs, state):
-      cond = inputs
-      prev_mel, hxcx = state
-      prev_mel = self.prenet(prev_mel)
-      x = jnp.concatenate((cond, prev_mel), axis=-1)
-      x, new_hxcx = self.decoder(x, hxcx)
-      x = self.projection(x)
-      return x, (x, new_hxcx)
-
-    state = (
-        jnp.zeros((B, FLAGS.mel_dim), dtype=jnp.float32),
-        self.decoder.initial_state(B)
-    )
-    x, _ = hk.dynamic_unroll(loop_fn, x, state, time_major=False)
-    residual = self.postnet(x)
-    return x + residual
+  def vae(self, mels):
+    params = self.vae_projection(mels)
+    mean, logstd = jnp.split(params, 2, axis=-1)
+    noise = jax.random.normal(hk.next_rng_key(), shape=mean.shape)
+    v = noise = noise * jnp.exp(logstd) + mean
+    return v, (mean, logstd)
 
   def __call__(self, inputs: AcousticInput):
     x = self.encoder(inputs.phonemes, inputs.lengths)
+
+    res = self.residual_encoder(inputs.durations, inputs.mels)
+    res, (vae_mean, vae_logstd) = self.vae(res)
+
+    x = jnp.concatenate((x, res), axis=-1)
     x = self.upsample(x, inputs.durations, inputs.mels.shape[1])
-    mels = self.prenet(inputs.mels)
-    x = jnp.concatenate((x, mels), axis=-1)
-    B, L, D = x.shape
-    hx = self.decoder.initial_state(B)
+    x = self.upsample_projection(x)
 
-    def zoneout_decoder(inputs, prev_state):
-      x, mask = inputs
-      x, state = self.decoder(x, prev_state)
-      state = jax.tree_multimap(lambda m, s1, s2: s1*m + s2*(1-m), mask, prev_state, state)
-      return x, state
+    out = []
+    for f, p in zip(self.decoder_stack, self.decoder_projection):
+      x = f(x)
+      out.append(p(x))
 
-    mask = jax.tree_map(lambda x: jax.random.bernoulli(hk.next_rng_key(), 0.1, (B, L, x.shape[-1])), hx)
-    x, _ = hk.dynamic_unroll(zoneout_decoder, (x, mask), hx, time_major=False)
-    x = self.projection(x)
-    residual = self.postnet(x)
-    return x, x + residual
+    return out, (vae_mean, vae_logstd)
