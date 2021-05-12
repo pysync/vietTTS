@@ -1,3 +1,4 @@
+import math
 from typing import NamedTuple, Optional, Tuple
 
 import einops
@@ -15,6 +16,19 @@ from .config import FLAGS, AcousticInput, DurationInput
 def get_lightconv_fn(kernel_size, num_heads):
   def f(x): return hk.Conv1D(num_heads, kernel_size, 1, 1, 'SAME', False, feature_group_count=num_heads)(x)
   return lambda w, x: hk.without_apply_rng(hk.transform(f)).apply({'conv1_d': {'w': w}}, x)
+
+
+def posenc(x):
+  B, L, D = x.shape
+  pos = jnp.arange(0, L)[:, None]
+  div_term = jnp.exp(
+      jnp.arange(0, D, 2, dtype=jnp.float32)[None, :]
+      * (-math.log(10_000) / D)
+  )
+  x1 = jnp.sin(pos * div_term)
+  x2 = jnp.cos(pos * div_term)
+  x_ = jnp.concatenate((x1, x2), axis=-1)
+  return x + x_[None]
 
 
 class LightConv(hk.Module):
@@ -77,19 +91,21 @@ class LConvBlock(hk.Module):
 class TokenEncoder(hk.Module):
   """Encode phonemes/text to vector"""
 
-  def __init__(self, vocab_size, lstm_dim, dropout_rate, is_training=True):
+  def __init__(self, vocab_size, dim, dropout_rate, is_training=True):
     super().__init__()
     self.is_training = is_training
-    self.embed = hk.Embed(vocab_size, lstm_dim)
-    self.conv1 = hk.Conv1D(lstm_dim, 3, padding='SAME')
-    self.conv2 = hk.Conv1D(lstm_dim, 3, padding='SAME')
-    self.conv3 = hk.Conv1D(lstm_dim, 3, padding='SAME')
+    self.dropout_rate = dropout_rate
+    self.embed = hk.Embed(vocab_size, dim)
+    self.conv1 = hk.Conv1D(dim, 5, padding='SAME')
+    self.conv2 = hk.Conv1D(dim, 5, padding='SAME')
+    self.conv3 = hk.Conv1D(dim, 5, padding='SAME')
     self.bn1 = hk.BatchNorm(True, True, 0.99)
     self.bn2 = hk.BatchNorm(True, True, 0.99)
     self.bn3 = hk.BatchNorm(True, True, 0.99)
-    self.lstm_fwd = hk.LSTM(lstm_dim)
-    self.lstm_bwd = hk.ResetCore(hk.LSTM(lstm_dim))
-    self.dropout_rate = dropout_rate
+    self.lconv_stack = [
+        LConvBlock(dim, 17, 8, 0.1, is_training=is_training)
+        for _ in range(6)
+    ]
 
   def __call__(self, x, lengths):
     x = self.embed(x)
@@ -99,14 +115,9 @@ class TokenEncoder(hk.Module):
     x = hk.dropout(hk.next_rng_key(), self.dropout_rate, x) if self.is_training else x
     x = jax.nn.relu(self.bn3(self.conv3(x), is_training=self.is_training))
     x = hk.dropout(hk.next_rng_key(), self.dropout_rate, x) if self.is_training else x
-    B, L, D = x.shape
-    mask = jnp.arange(0, L)[None, :] >= (lengths[:, None] - 1)
-    h0c0_fwd = self.lstm_fwd.initial_state(B)
-    new_hx_fwd, new_hxcx_fwd = hk.dynamic_unroll(self.lstm_fwd, x, h0c0_fwd, time_major=False)
-    x_bwd, mask_bwd = jax.tree_map(lambda x: jnp.flip(x, axis=1), (x, mask))
-    h0c0_bwd = self.lstm_bwd.initial_state(B)
-    new_hx_bwd, new_hxcx_bwd = hk.dynamic_unroll(self.lstm_bwd, (x_bwd, mask_bwd), h0c0_bwd, time_major=False)
-    x = jnp.concatenate((new_hx_fwd, jnp.flip(new_hx_bwd, axis=1)), axis=-1)
+    x = posenc(x)
+    for f in self.lconv_stack:
+      x = f(x)
     return x
 
 
@@ -164,6 +175,7 @@ class AcousticModel(hk.Module):
     return x
 
   def residual_encoder(self, durations, mels):
+    mels = posenc(mels)
     for f in self.residual_stack:
       mels = f(mels)
     B, L, D = mels.shape
@@ -195,6 +207,7 @@ class AcousticModel(hk.Module):
     x = jnp.concatenate((x, res), axis=-1)
     x = self.upsample(x, inputs.durations, inputs.mels.shape[1])
     x = self.upsample_projection(x)
+    x = posenc(x)
 
     out = []
     for f, p in zip(self.decoder_stack, self.decoder_projection):

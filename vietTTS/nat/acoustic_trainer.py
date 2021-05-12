@@ -74,11 +74,13 @@ val_loss_fn = jax.jit(partial(loss_fn, is_training=False))
 
 loss_vag = jax.value_and_grad(train_loss_fn, has_aux=True)
 
+
 def make_optimizer(lr):
   return optax.chain(
       optax.clip_by_global_norm(1.0),
       optax.adam(lr),
   )
+
 
 optimizer = make_optimizer(FLAGS.learning_rate)
 
@@ -113,6 +115,7 @@ def train():
   params, aux, rng, optim_state = initial_state(batch)
   losses = Deque(maxlen=1000)
   val_losses = Deque(maxlen=100)
+  vae_losses = Deque(maxlen=1000)
 
   last_step = -1
 
@@ -139,6 +142,7 @@ def train():
     batch = next(train_data_iter)
     (loss, vae_loss), (params, aux, rng, optim_state) = update(params, aux, rng, optim_state, batch, schedule)
     losses.append(loss)
+    vae_losses.append(vae_loss)
 
     if step % 10 == 0:
       val_batch = next(val_data_iter)
@@ -151,7 +155,7 @@ def train():
     if step % 1000 == 0:
       loss = sum(losses).item() / len(losses)
       val_loss = sum(val_losses).item() / len(val_losses)
-      vae_loss = vae_loss.item()
+      vae_loss = sum(vae_losses).item() / len(vae_losses)
       tr.write(f'step {step}  train loss {loss:.3f}  val loss {val_loss:.3f}  vae loss {vae_loss:.3f}  lr {schedule.learning_rate:.3e}  beta {schedule.beta:.3e}')
 
       # saving predicted mels
