@@ -173,7 +173,7 @@ def train():
 
       # update schedule
       for s in FLAGS._acoustic_schedule:
-        if s.end_step > last_step + 1:
+        if s.end_step > step:
           schedule = s
           break
 
