@@ -39,7 +39,7 @@ def val_net(x): return AcousticModel(is_training=False)(x)
 #   return mel1_hat, mel2_hat
 
 
-def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
+def loss_fn(params, aux, rng, inputs: AcousticInput, beta, is_training=True):
   melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim, FLAGS.fmin, FLAGS.fmax)
   mels = melfilter(inputs.wavs.astype(jnp.float32) / (2**15))
   B, L, D = mels.shape
@@ -53,7 +53,6 @@ def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
     loss = loss + jnp.mean(jnp.abs(mel_hat - mels), axis=-1)
   loss = loss / len(mel_stack)
 
-  beta = 1.0
   # D_KL(Q(z|X) || P(z|X)); calculate in closed form as both dist. are Gaussian
   mu, log_std = vae_params
   log_sigma = 2 * log_std
@@ -75,16 +74,20 @@ val_loss_fn = jax.jit(partial(loss_fn, is_training=False))
 
 loss_vag = jax.value_and_grad(train_loss_fn, has_aux=True)
 
-optimizer = optax.chain(
-    optax.clip_by_global_norm(1.0),
-    optax.adam(FLAGS.learning_rate)
-)
+def make_optimizer(lr):
+  return optax.chain(
+      optax.clip_by_global_norm(1.0),
+      optax.adam(lr),
+  )
+
+optimizer = make_optimizer(FLAGS.learning_rate)
 
 
 @jax.jit
-def update(params, aux, rng, optim_state, inputs):
+def update(params, aux, rng, optim_state, inputs, schedule):
   rng, new_rng = jax.random.split(rng)
-  (loss, (vae_loss, new_aux)), grads = loss_vag(params, aux, rng, inputs)
+  (loss, (vae_loss, new_aux)), grads = loss_vag(params, aux, rng, inputs, schedule.beta)
+  optimizer = make_optimizer(schedule.learning_rate)
   updates, new_optim_state = optimizer.update(grads, optim_state, params)
   new_params = optax.apply_updates(updates, params)
   return (loss, vae_loss), (new_params, new_aux, new_rng, new_optim_state)
@@ -127,14 +130,19 @@ def train():
       total=FLAGS.num_training_steps+1,
       initial=last_step+1
   )
+  for s in FLAGS._acoustic_schedule:
+    if s.end_step > last_step + 1:
+      schedule = s
+      break
+
   for step in tr:
     batch = next(train_data_iter)
-    (loss, vae_loss), (params, aux, rng, optim_state) = update(params, aux, rng, optim_state, batch)
+    (loss, vae_loss), (params, aux, rng, optim_state) = update(params, aux, rng, optim_state, batch, schedule)
     losses.append(loss)
 
     if step % 10 == 0:
       val_batch = next(val_data_iter)
-      val_loss, val_vae_loss, val_aux, predicted_mel, gt_mel = val_loss_fn(params, aux, rng, val_batch)
+      val_loss, val_vae_loss, val_aux, predicted_mel, gt_mel = val_loss_fn(params, aux, rng, val_batch, schedule.beta)
       val_losses.append(val_loss)
       attn = jax.device_get(val_aux['acoustic_model']['attn'][0])
       predicted_mel = jax.device_get(predicted_mel[0])
@@ -144,12 +152,13 @@ def train():
       loss = sum(losses).item() / len(losses)
       val_loss = sum(val_losses).item() / len(val_losses)
       vae_loss = vae_loss.item()
-      tr.write(f'step {step}  train loss {loss:.3f}  val loss {val_loss:.3f}  vae loss {vae_loss:.3f}')
+      tr.write(f'step {step}  train loss {loss:.3f}  val loss {val_loss:.3f}  vae loss {vae_loss:.3f}  lr {schedule.learning_rate:.3e}  beta {schedule.beta:.3e}')
 
       # saving predicted mels
       plt.figure(figsize=(10, 10))
       plt.subplot(3, 1, 1)
-      plt.imshow(predicted_mel.T, origin='lower', aspect='auto')
+      plt.imshow(predicted_mel.T, origin='lower', aspect='auto',
+                 vmin=jnp.min(gt_mel.T).item(), vmax=jnp.max(gt_mel.T).item())
       plt.subplot(3, 1, 2)
       plt.imshow(gt_mel.T, origin='lower', aspect='auto')
       plt.subplot(3, 1, 3)
@@ -161,6 +170,12 @@ def train():
       # saving checkpoint
       with open(ckpt_fn, 'wb') as f:
         pickle.dump({'step': step, 'params': params, 'aux': aux, 'rng': rng, 'optim_state': optim_state}, f)
+
+      # update schedule
+      for s in FLAGS._acoustic_schedule:
+        if s.end_step > last_step + 1:
+          schedule = s
+          break
 
 
 if __name__ == '__main__':

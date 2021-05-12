@@ -6,6 +6,12 @@ from typing import NamedTuple
 from jax.numpy import ndarray
 
 
+class TrainingSchedule(NamedTuple):
+  end_step: int
+  learning_rate: float
+  beta: float
+
+
 class FLAGS(Namespace):
   duration_lstm_dim = 256
   vocab_size = 256
@@ -27,9 +33,23 @@ class FLAGS(Namespace):
   fmax = 8000
 
   # training
-  batch_size = 1
+  batch_size = 64
   learning_rate = 1e-3
   max_grad_norm = 1.0
+
+  _acoustic_schedule = [
+      TrainingSchedule(1000,   1e-7, 0.0),
+      TrainingSchedule(2000,   1e-6, 0.0),
+      TrainingSchedule(5000,   1e-5, 0.0),
+      TrainingSchedule(10000,  5e-5, 1e-4),
+      TrainingSchedule(20000,  3e-4, 1e-3),
+      TrainingSchedule(40000,  1e-3, 1e-2),
+      TrainingSchedule(50000,  1e-3, 1e-1),
+      TrainingSchedule(100000, 1e-3, 1e-0),
+      TrainingSchedule(200000, 1e-4, 1e-0),
+      TrainingSchedule(400000, 2e-5, 1e-0),
+      TrainingSchedule(500000, 1e-5, 1e-0),
+  ]
 
   # ckpt
   ckpt_dir = Path('assets/infore/nat')

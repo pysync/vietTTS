@@ -49,12 +49,12 @@ class LConvBlock(hk.Module):
 
     self.glu_fc = hk.Linear(dim*2)
     self.lconv = LightConv(dim, kernel_size, num_heads, dropout_rate, is_training)
-    self.layernorm1 = hk.LayerNorm(1, True, True)
+    self.layernorm1 = hk.LayerNorm(-1, True, True)
 
     self.ff_fc1 = hk.Linear(dim*4)
     self.ff_fc2 = hk.Linear(dim)
 
-    self.layernorm2 = hk.LayerNorm(1, True, True)
+    self.layernorm2 = hk.LayerNorm(-1, True, True)
 
   def __call__(self, x):
     x_res = x
