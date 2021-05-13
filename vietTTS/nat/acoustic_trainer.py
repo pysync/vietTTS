@@ -50,7 +50,7 @@ def loss_fn(params, aux, rng, inputs: AcousticInput, beta, is_training=True):
 
   loss = 0.0
   for mel_hat in mel_stack:
-    loss = loss + jnp.mean(jnp.abs(mel_hat - mels), axis=-1)
+    loss = loss + jnp.mean((jnp.abs(mel_hat - mels) + jnp.square(mel_hat - mels))/2, axis=-1)
   loss = loss / len(mel_stack)
 
   # D_KL(Q(z|X) || P(z|X)); calculate in closed form as both dist. are Gaussian
@@ -64,9 +64,9 @@ def loss_fn(params, aux, rng, inputs: AcousticInput, beta, is_training=True):
   mask = jnp.arange(0, dkl.shape[1])[None, :] < inputs.lengths[:, None]
   vae_loss = jnp.sum(dkl * mask) / jnp.sum(mask)
 
-  loss = loss + vae_loss * beta
+  total_loss = loss + vae_loss * beta
 
-  return (loss, (vae_loss, new_aux)) if is_training else (loss, vae_loss, new_aux, mel_stack[-1], mels)
+  return (total_loss, (loss, vae_loss, new_aux)) if is_training else (loss, vae_loss, new_aux, mel_stack[-1], mels)
 
 
 train_loss_fn = partial(loss_fn, is_training=True)
@@ -88,7 +88,7 @@ optimizer = make_optimizer(FLAGS.learning_rate)
 @partial(jax.jit, static_argnums=[5])
 def update(params, aux, rng, optim_state, inputs, schedule):
   rng, new_rng = jax.random.split(rng)
-  (loss, (vae_loss, new_aux)), grads = loss_vag(params, aux, rng, inputs, schedule.beta)
+  (_, (loss, vae_loss, new_aux)), grads = loss_vag(params, aux, rng, inputs, schedule.beta)
   optimizer = make_optimizer(schedule.learning_rate)
   updates, new_optim_state = optimizer.update(grads, optim_state, params)
   new_params = optax.apply_updates(updates, params)
