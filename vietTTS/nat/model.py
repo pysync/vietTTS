@@ -61,30 +61,44 @@ class LConvBlock(hk.Module):
   def __init__(self, dim, kernel_size, num_heads=8, dropout_rate=0.1, is_training=True):
     super().__init__()
 
+    self.layernorm1 = hk.LayerNorm(-1, True, True)
     self.glu_fc = hk.Linear(dim*2)
     self.lconv = LightConv(dim, kernel_size, num_heads, dropout_rate, is_training)
-    self.layernorm1 = hk.LayerNorm(-1, True, True)
 
+    self.layernorm2 = hk.LayerNorm(-1, True, True)
     self.ff_fc1 = hk.Linear(dim*4)
     self.ff_fc2 = hk.Linear(dim)
 
-    self.layernorm2 = hk.LayerNorm(-1, True, True)
-
   def __call__(self, x):
     x_res = x
+    x = self.layernorm1(x)
     x = self.glu_fc(x)
     x1, x2 = jnp.split(x, 2, axis=-1)
     x = x1 * jax.nn.sigmoid(x2)
     x = self.lconv(x)
-    x = self.layernorm1(x + x_res)
-
+    x = x + x_res
     x_res = x
-
+    x = self.layernorm2(x)
     x = self.ff_fc1(x)
     x = jax.nn.relu(x)
     x = self.ff_fc2(x)
+    x = x + x_res
+    return x
 
-    x = self.layernorm2(x + x_res)
+
+class LConvStack(hk.Module):
+  def __init__(self, num_layers, dim, kernel_size, num_heads, dropout_rate=0.1, is_training=True):
+    super().__init__()
+    self.layers = [
+        LConvBlock(dim, kernel_size, num_heads, dropout_rate, is_training)
+        for _ in range(num_layers)
+    ]
+    self.layer_norm = hk.LayerNorm(-1, True, True)
+
+  def __call__(self, x):
+    for f in self.layers:
+      x = f(x)
+    x = self.layer_norm(x)
     return x
 
 
@@ -102,10 +116,7 @@ class TokenEncoder(hk.Module):
     self.bn1 = hk.BatchNorm(True, True, 0.99)
     self.bn2 = hk.BatchNorm(True, True, 0.99)
     self.bn3 = hk.BatchNorm(True, True, 0.99)
-    self.lconv_stack = [
-        LConvBlock(dim, 17, 8, 0.1, is_training=is_training)
-        for _ in range(6)
-    ]
+    self.lconv_stack = LConvStack(6, dim, 17, 8, 0.1, is_training)
 
   def __call__(self, x, lengths):
     x = self.embed(x)
@@ -116,8 +127,7 @@ class TokenEncoder(hk.Module):
     x = jax.nn.relu(self.bn3(self.conv3(x), is_training=self.is_training))
     x = hk.dropout(hk.next_rng_key(), self.dropout_rate, x) if self.is_training else x
     x = posenc(x)
-    for f in self.lconv_stack:
-      x = f(x)
+    x = self.lconv_stack(x)
     return x
 
 
@@ -149,11 +159,8 @@ class AcousticModel(hk.Module):
     super().__init__()
     self.is_training = is_training
     self.encoder = TokenEncoder(FLAGS.vocab_size, FLAGS.acoustic_encoder_dim, 0.5, is_training)
-    self.residual_stack = [
-        LConvBlock(FLAGS.acoustic_decoder_dim, 17, 8, 0.1, is_training=is_training)
-        for _ in range(5)
-    ]
-    self.residual_stack.insert(0, hk.Linear(FLAGS.acoustic_decoder_dim))
+    self.residual_projection = hk.Linear(FLAGS.acoustic_decoder_dim)
+    self.residual_stack = LConvStack(5, FLAGS.acoustic_decoder_dim, 17, 8, 0.1, is_training=is_training)
 
     self.decoder_stack = [
         LConvBlock(FLAGS.acoustic_decoder_dim, 17, 8, 0.1, is_training=is_training)
@@ -176,8 +183,8 @@ class AcousticModel(hk.Module):
 
   def residual_encoder(self, durations, mels):
     mels = posenc(mels)
-    for f in self.residual_stack:
-      mels = f(mels)
+    mels = self.residual_projection(mels)
+    mels = self.residual_stack(mels)
     B, L, D = mels.shape
     ruler = jnp.arange(0, L)[None, :, None]
     end_frame = jnp.cumsum(durations, axis=1)
