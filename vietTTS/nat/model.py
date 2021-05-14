@@ -68,7 +68,7 @@ class AcousticModel(hk.Module):
   def __init__(self, is_training=True):
     super().__init__()
     self.is_training = is_training
-    self.encoder = TokenEncoder(FLAGS.vocab_size, FLAGS.acoustic_encoder_dim, 0.5, is_training)
+    self.encoder = TokenEncoder(FLAGS.vocab_size, FLAGS.acoustic_encoder_dim, is_training)
     self.decoder = hk.deep_rnn_with_skip_connections([
         hk.LSTM(FLAGS.acoustic_decoder_dim),
         hk.LSTM(FLAGS.acoustic_decoder_dim)
