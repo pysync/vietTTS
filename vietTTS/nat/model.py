@@ -23,7 +23,7 @@ def posenc(x):
   pos = jnp.arange(0, L)[:, None]
   div_term = jnp.exp(
       jnp.arange(0, D, 2, dtype=jnp.float32)[None, :]
-      * (-math.log(100) / D)
+      * (-math.log(20) / D)
   )
   x1 = jnp.sin(pos * div_term)
   x2 = jnp.cos(pos * div_term)
