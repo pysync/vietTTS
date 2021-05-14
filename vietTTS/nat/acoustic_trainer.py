@@ -51,7 +51,7 @@ def loss_fn(params, aux, rng, inputs: AcousticInput, beta, is_training=True):
   mask = jnp.arange(0, dkl.shape[1])[None, :] < inputs.lengths[:, None]
   vae_loss = jnp.sum(dkl * mask) / jnp.sum(mask)
 
-  total_loss = loss + vae_loss * beta
+  total_loss = loss + vae_loss * (beta / FLAGS.mel_dim)
 
   return (total_loss, (loss, vae_loss, new_aux)) if is_training else (loss, vae_loss, new_aux, mel_stack[-1], mels)
 

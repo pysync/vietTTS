@@ -169,6 +169,7 @@ class AcousticModel(hk.Module):
     self.upsample_projection = hk.Linear(FLAGS.acoustic_decoder_dim)
     self.decoder_projection = [hk.Linear(FLAGS.mel_dim) for _ in range(6)]
     self.vae_projection = hk.Linear(FLAGS.vae_dim * 2)
+    self.post_vae_projection = hk.Linear(FLAGS.vae_dim * 4)
 
   def upsample(self, x, durations, L):
     ruler = jnp.arange(0, L)[None, :]  # B, L
@@ -210,6 +211,7 @@ class AcousticModel(hk.Module):
     x = self.encoder(tokens, lengths)
     B, L, D = x.shape
     res = jnp.zeros((B, L, 8))
+    res = self.post_vae_projection(res)
     x = jnp.concatenate((x, res), axis=-1)
     x = self.upsample(x, durations, n_frames)
     x = self.upsample_projection(x)
@@ -224,6 +226,7 @@ class AcousticModel(hk.Module):
 
     res = self.residual_encoder(inputs.durations, inputs.mels)
     res, (vae_mean, vae_logstd) = self.vae(res)
+    res = self.post_vae_projection(res) # stabilize random residual
 
     x = jnp.concatenate((x, res), axis=-1)
     x = self.upsample(x, inputs.durations, inputs.mels.shape[1])

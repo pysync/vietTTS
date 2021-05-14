@@ -91,7 +91,7 @@ if __name__ == '__main__':
   parser.add_argument('--output', type=Path, required=True)
   args = parser.parse_args()
   mel = text2mel(args.text)
-  plt.figure(figsize=(20, 5))
+  plt.figure(figsize=(50, 5))
   plt.imshow(mel[0].T, origin='lower', aspect='auto')
   plt.savefig(str(args.output))
   plt.close()
