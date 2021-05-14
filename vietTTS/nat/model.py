@@ -138,15 +138,7 @@ class AcousticModel(hk.Module):
     x = jnp.concatenate((x, mels), axis=-1)
     B, L, D = x.shape
     hx = self.decoder.initial_state(B)
-
-    def zoneout_decoder(inputs, prev_state):
-      x, mask = inputs
-      x, state = self.decoder(x, prev_state)
-      state = jax.tree_multimap(lambda m, s1, s2: s1*m + s2*(1-m), mask, prev_state, state)
-      return x, state
-
-    mask = jax.tree_map(lambda x: jax.random.bernoulli(hk.next_rng_key(), 0.1, (B, L, x.shape[-1])), hx)
-    x, _ = hk.dynamic_unroll(zoneout_decoder, (x, mask), hx, time_major=False)
+    x, _ = hk.dynamic_unroll(self.decoder, x, hx, time_major=False)
     x = self.projection(x)
     residual = self.postnet(x)
     return x, x + residual
