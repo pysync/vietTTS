@@ -143,7 +143,7 @@ def train():
       loss = sum(losses).item() / len(losses)
       val_loss = sum(val_losses).item() / len(val_losses)
       vae_loss = sum(vae_losses).item() / len(vae_losses)
-      tr.write(f'step {step}  train loss {loss:.3f}  val loss {val_loss:.3f}  vae loss {vae_loss:.3f}  lr {schedule.learning_rate:.3e}  beta {schedule.beta:.3e}')
+      tr.write(f'step {step}  train loss {loss:.3f}  val loss {val_loss:.3f}  vae loss {vae_loss:.3f}  lr {schedule.learning_rate:.1e}  beta {schedule.beta:.1f}')
 
       # saving predicted mels
       plt.figure(figsize=(10, 10))
