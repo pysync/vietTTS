@@ -76,16 +76,17 @@ class AcousticModel(hk.Module):
     self.projection = hk.Linear(FLAGS.mel_dim)
 
     # prenet
-    self.prenet_fc1 = hk.Linear(64, with_bias=True)
-    self.prenet_fc2 = hk.Linear(8, with_bias=True)
+    # self.prenet_fc1 = hk.Linear(64, with_bias=True)
+    # self.prenet_fc2 = hk.Linear(8, with_bias=True)
     # posnet
     self.postnet_convs = [hk.Conv1D(FLAGS.postnet_dim, 5) for _ in range(4)] + [hk.Conv1D(FLAGS.mel_dim, 5)]
     self.postnet_bns = [hk.BatchNorm(True, True, 0.9) for _ in range(4)] + [None]
 
   def prenet(self, x):
-    x = jax.nn.gelu(self.prenet_fc1(x))
-    x = jax.nn.gelu(self.prenet_fc2(x))
     return x
+    # x = jax.nn.gelu(self.prenet_fc1(x))
+    # x = jax.nn.gelu(self.prenet_fc2(x))
+    # return x
 
   def upsample(self, x, durations, L):
     ruler = jnp.arange(0, L)[None, :]  # B, L
