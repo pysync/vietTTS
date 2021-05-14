@@ -23,7 +23,7 @@ def posenc(x):
   pos = jnp.arange(0, L)[:, None]
   div_term = jnp.exp(
       jnp.arange(0, D, 2, dtype=jnp.float32)[None, :]
-      * (-math.log(10_000) / D)
+      * (-math.log(100) / D)
   )
   x1 = jnp.sin(pos * div_term)
   x2 = jnp.cos(pos * div_term)
@@ -204,6 +204,20 @@ class AcousticModel(hk.Module):
     noise = jax.random.normal(hk.next_rng_key(), shape=mean.shape)
     v = noise * jnp.exp(logstd) + mean
     return v, (mean, logstd)
+
+  def inference(self, tokens, durations, n_frames):
+    lengths = jnp.array([tokens.shape[1]])
+    x = self.encoder(tokens, lengths)
+    B, L, D = x.shape
+    res = jnp.zeros((B, L, 8))
+    x = jnp.concatenate((x, res), axis=-1)
+    x = self.upsample(x, durations, n_frames)
+    x = self.upsample_projection(x)
+    x = posenc(x)
+    for f, p in zip(self.decoder_stack, self.decoder_projection):
+      x = f(x)
+    x = p(x)
+    return x
 
   def __call__(self, inputs: AcousticInput):
     x = self.encoder(inputs.phonemes, inputs.lengths)

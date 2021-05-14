@@ -40,18 +40,24 @@ class FLAGS(Namespace):
   _acoustic_schedule = [
       TrainingSchedule(1000,   1e-5, 0.0),
       TrainingSchedule(2000,   2e-5, 0.0),
-      TrainingSchedule(5000,   5e-5, 0.0),
-      TrainingSchedule(10000,  1e-4, 0.001),
-      TrainingSchedule(20000,  2e-4, 0.01),
-      TrainingSchedule(30000,  5e-4, 0.1),
-      TrainingSchedule(35000,  1e-3, 0.2),
-      TrainingSchedule(40000,  1e-3, 0.3),
-      TrainingSchedule(45000,  1e-3, 0.4),
-      TrainingSchedule(50000,  1e-3, 0.5),
-      TrainingSchedule(55000,  1e-3, 0.6),
-      TrainingSchedule(60000,  1e-3, 0.7),
-      TrainingSchedule(63000,  1e-3, 0.8),
-      TrainingSchedule(67000,  1e-3, 0.9),
+      TrainingSchedule(3000,   5e-5, 0.0),
+      TrainingSchedule(4000,   1e-4, 0.0),
+      TrainingSchedule(5000,   2e-4, 0.0),
+      TrainingSchedule(6000,   5e-4, 0.1),
+      TrainingSchedule(7000,   1e-3, 0.2),
+      TrainingSchedule(8000,   1e-3, 0.3),
+      TrainingSchedule(9000,   1e-3, 0.4),
+      TrainingSchedule(10000,  1e-4, 0.5),
+      TrainingSchedule(20000,  2e-4, 0.6),
+      TrainingSchedule(30000,  5e-4, 0.7),
+      TrainingSchedule(35000,  1e-3, 0.8),
+      TrainingSchedule(40000,  1e-3, 0.9),
+      TrainingSchedule(45000,  1e-3, 1.0),
+      TrainingSchedule(50000,  1e-3, 1.0),
+      TrainingSchedule(55000,  1e-3, 1.0),
+      TrainingSchedule(60000,  1e-3, 1.0),
+      TrainingSchedule(63000,  1e-3, 1.0),
+      TrainingSchedule(67000,  1e-3, 1.0),
       TrainingSchedule(70000,  1e-3, 1.0),
       TrainingSchedule(100000, 1e-3, 1.0),
       TrainingSchedule(200000, 1e-4, 1.0),
@@ -60,9 +66,9 @@ class FLAGS(Namespace):
   ]
 
   # ckpt
-  ckpt_dir=Path('assets/infore/nat')
-  data_dir=Path('assets/infore/data')
-  data_dir=Path('train_data')
+  ckpt_dir = Path('assets/infore/nat')
+  data_dir = Path('assets/infore/data')
+  data_dir = Path('train_data')
 
 
 class DurationInput(NamedTuple):
