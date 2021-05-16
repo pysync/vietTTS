@@ -1,7 +1,7 @@
 A Vietnamese TTS
 ================
 
-Tacotron + WaveRNN for vietnamese datasets.
+Tacotron + HiFiGAN vocoder for vietnamese datasets.
 
 A synthesized audio clip is at [assets/infore/clip.wav](assets/infore/clip.wav).
 
@@ -49,17 +49,26 @@ python3 -m vietTTS.nat.acoustic_trainer
 
 
 
-Train waveRNN
+Train HiFiGAN
 -------------
 
-```sh
-python3 -m vietTTS.waveRNN.trainer
-```
+We use the original implementation from HiFiGAN authors at https://github.com/jik876/hifi-gan. Use the config file at `assets/hifigan/config.json` to train your model.
 
+Then, use the following command to convert pytorch model to haiku format:
+```sh
+python3 -m vietTTS.hifigan.convert_torch_model_to_haiku \
+  --config-file=assets/hifigan/config.json \
+  --checkpoint-file=/path/to/pytorch/model/g_[latest_checkpoint]
+```
 
 Synthesize speech
 -----------------
 
 ```sh
-python3 -m vietTTS.synthesizer --use-nat --use-hifigan --lexicon-file train_data/lexicon.txt --text="hôm qua em tới trường" --output=clip.wav
+python3 -m vietTTS.synthesizer \
+  --use-nat \
+  --use-hifigan \
+  --lexicon-file=train_data/lexicon.txt 
+  --text="hôm qua em tới trường" \
+  --output=clip.wav
 ```

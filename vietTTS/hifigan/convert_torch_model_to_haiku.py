@@ -1,15 +1,13 @@
 import argparse
-import glob
 import json
 import os
 import pickle
-import shutil
 
 import numpy as np
 import torch
 
-from .torch_model import Generator
 from .config import FLAGS
+from .torch_model import Generator
 
 
 class AttrDict(dict):
@@ -58,16 +56,18 @@ def convert_to_haiku(a, h, device):
       else:
         hk_map[a]['w'] = b.numpy()
 
+  FLAGS.ckpt_dir.mkdir(parents=True, exist_ok=True)
   with open(FLAGS.ckpt_dir / 'hk_hifi.pickle', 'wb') as f:
     pickle.dump(hk_map, f)
 
 
 def main():
   parser = argparse.ArgumentParser()
-  parser.add_argument('--checkpoint_file', required=True)
+  parser.add_argument('--checkpoint-file', required=True)
+  parser.add_argument('--config-file', required=True)
   a = parser.parse_args()
 
-  config_file = os.path.join(os.path.split(a.checkpoint_file)[0], 'config.json')
+  config_file = a.config_file
   with open(config_file) as f:
     data = f.read()
 
