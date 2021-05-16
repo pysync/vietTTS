@@ -67,7 +67,11 @@ tail -n +101 data/files.txt > train_files.txt
 rm data/files.txt
 
 # training
-python3 train.py --config ../assets/hifigan/config.json --input_wavs_dir=data  --input_training_file=train_files.txt  --input_validation_file=val_files.txt
+python3 train.py \
+  --config ../assets/hifigan/config.json 
+  --input_wavs_dir=data  \
+  --input_training_file=train_files.txt \
+  --input_validation_file=val_files.txt
 ```
 
 Then, use the following command to convert pytorch model to haiku format:
