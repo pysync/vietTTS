@@ -7,7 +7,6 @@ import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 import optax
-from jax.interpreters.masking import is_tracing
 from tqdm.auto import tqdm
 from vietTTS.nat.config import AcousticInput
 from vietTTS.tacotron.dsp import MelFilter
@@ -50,7 +49,7 @@ def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
   loss1 = (jnp.square(mel1_hat - mels) + jnp.square(mel2_hat - mels)) / 2
   loss2 = (jnp.abs(mel1_hat - mels) + jnp.abs(mel2_hat - mels)) / 2
   loss = jnp.mean((loss1 + loss2)/2, axis=-1)
-  mask = jnp.arange(0, L)[None, :] < (inputs.wav_lengths // (FLAGS.n_fft // 4))[:, None]
+  mask = (jnp.arange(0, L)[None, :] - 10) < (inputs.wav_lengths // (FLAGS.n_fft // 4))[:, None]
   loss = jnp.sum(loss * mask) / jnp.sum(mask)
   return (loss, new_aux) if is_training else (loss, new_aux, mel2_hat, mels)
 

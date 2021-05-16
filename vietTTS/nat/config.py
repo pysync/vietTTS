@@ -1,6 +1,5 @@
 from argparse import Namespace
 from pathlib import Path
-from random import sample
 from typing import NamedTuple
 
 from jax.numpy import ndarray
@@ -12,12 +11,12 @@ class FLAGS(Namespace):
   duration_embed_dropout_rate = 0.5
   num_training_steps = 100_000
   postnet_dim = 512
-  acoustic_decoder_dim = 1024
+  acoustic_decoder_dim = 512
   acoustic_encoder_dim = 256
 
   # dataset
-  max_phoneme_seq_len = 128*3
-  max_wave_len = 1024 * 64 * 2
+  max_phoneme_seq_len = 128 * 3
+  max_wave_len = 1024 * 64 * 3
 
   # dsp
   mel_dim = 80
@@ -28,7 +27,7 @@ class FLAGS(Namespace):
 
   # training
   batch_size = 64
-  learning_rate = 1e-3
+  learning_rate = 3e-4
   max_grad_norm = 1.0
 
   # ckpt

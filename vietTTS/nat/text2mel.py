@@ -80,7 +80,9 @@ def text2mel(text: str, lexicon_fn=FLAGS.data_dir / 'lexicon.txt', silence_durat
       durations
   )
   mels = predict_mel(tokens, durations)
-  return mels
+  end_silence = durations[0, -1].item() / 10
+  silence_frame = int(end_silence * FLAGS.sample_rate / (FLAGS.n_fft // 4))
+  return mels[:, :-silence_frame]
 
 
 if __name__ == '__main__':
