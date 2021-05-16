@@ -3,7 +3,7 @@ A Vietnamese TTS
 
 Tacotron + HiFiGAN vocoder for vietnamese datasets.
 
-A synthesized audio clip is at [assets/infore/clip.wav](assets/infore/clip.wav).
+A synthesized audio clip: [clip.wav](assets/infore/clip.wav). A colab notebook: [notebook](https://colab.research.google.com/drive/1oczrWOQOr1Y_qLdgis1twSlNZlfPVXoY?usp=sharing).
 
 Install
 -------
