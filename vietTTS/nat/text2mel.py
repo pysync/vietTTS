@@ -37,6 +37,7 @@ def text2tokens(text, lexicon_fn):
 
   words = text.strip().lower().split()
   tokens = [0]
+  tokens.append(phonemes.index('space'))  # add word separator
   for word in words:
     if word in phonemes:
       tokens.append(phonemes.index(word))
