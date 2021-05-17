@@ -4,7 +4,6 @@ from pathlib import Path
 import numpy as np
 import textgrid
 from scipy.io import wavfile
-from vietTTS.nat.model import DurationModel
 
 from .config import AcousticInput, DurationInput
 
@@ -16,7 +15,7 @@ def load_phonemes_set_from_lexicon_file(fn: Path):
     phonemes = phonemes.split()
     S.update(phonemes)
 
-  S = ['sil', 'sp', 'spn'] + sorted(list(S))
+  S = ['sil', 'sp', 'spn', 'space'] + sorted(list(S))
   return S
 
 
@@ -25,10 +24,24 @@ def pad_seq(s, maxlen, value=0):
   return tuple(s) + (value,) * (maxlen - len(s))
 
 
+def is_in_word(phone, word):
+  def time_in_word(time, word):
+    return (word.minTime - 1e-3) < time and (word.maxTime + 1e-3) > time
+  return time_in_word(phone.minTime, word) and time_in_word(phone.maxTime)
+
+
 def load_textgrid(fn: Path):
   tg = textgrid.TextGrid.fromFile(str(fn.resolve()))
   data = []
+  words = list(tg[0])
+  widx = 0
   for p in tg[1]:
+    if not p in words[widx]:
+      data.append(('space', 0.0))
+      widx = widx + 1
+      if widx >= len(words):
+        break
+      assert p in words[widx], 'mismatched word vs phoneme'
     data.append((p.mark.strip().lower(), p.duration()))
   return data
 
