@@ -30,7 +30,12 @@ Download InfoRe dataset
 bash ./scripts/download_aligned_infore_dataset.sh
 ```
 
-**Note**: this is a denoised and aligned version of the original dataset which is donated by the InfoRe Technology company (see [here](https://www.facebook.com/groups/j2team.community/permalink/1010834009248719/)). You can download the original dataset (**InfoRe Technology 1**) at [here](https://github.com/TensorSpeech/TensorFlowASR/blob/main/README.md#vietnamese).
+**Note**: 
+
+* This is a denoised and aligned version of the original dataset which is donated by the InfoRe Technology company (see [here](https://www.facebook.com/groups/j2team.community/permalink/1010834009248719/)). You can download the original dataset (**InfoRe Technology 1**) at [here](https://github.com/TensorSpeech/TensorFlowASR/blob/main/README.md#vietnamese).
+* https://github.com/haoxiangsnr/FullSubNet is used to denoise the speech.
+* [Montreal Forced Aligner](https://github.com/MontrealCorpusTools/Montreal-Forced-Aligner) is used to align phonemes (vietnamese characters) and speech.
+
 
 
 Train duration model

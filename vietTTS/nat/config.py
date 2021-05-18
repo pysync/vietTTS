@@ -9,7 +9,7 @@ class FLAGS(Namespace):
   duration_lstm_dim = 256
   vocab_size = 256
   duration_embed_dropout_rate = 0.5
-  num_training_steps = 100_000
+  num_training_steps = 200_000
   postnet_dim = 512
   acoustic_decoder_dim = 512
   acoustic_encoder_dim = 256
@@ -27,7 +27,7 @@ class FLAGS(Namespace):
 
   # training
   batch_size = 64
-  learning_rate = 3e-4
+  learning_rate = 1e-3
   max_grad_norm = 1.0
 
   # ckpt

@@ -81,6 +81,7 @@ def text2mel(text: str, lexicon_fn=FLAGS.data_dir / 'lexicon.txt', silence_durat
       jnp.clip(durations, a_min=silence_duration * 10, a_max=10),
       durations
   )
+  durations = jnp.where( np.array(tokens)[None, :] == 3, 0.0, durations) # [space] token has empty duration.
   mels = predict_mel(tokens, durations)
   end_silence = durations[0, -1].item() / 10
   silence_frame = int(end_silence * FLAGS.sample_rate / (FLAGS.n_fft // 4))
