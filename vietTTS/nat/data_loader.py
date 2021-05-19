@@ -127,6 +127,6 @@ def load_textgrid_wav(data_dir: Path, token_seq_len: int, batch_size, pad_wav_le
           yield AcousticInput(ps, lengths, ds, wavs, wav_lengths, None)
         batch = []
     if mode == 'gta':
-      # last batch
-      yield names, AcousticInput(ps, lengths, ds, wavs, wav_lengths, None)
+      # removed last batch
+      # yield names, AcousticInput(ps, lengths, ds, wavs, wav_lengths, None)
       break

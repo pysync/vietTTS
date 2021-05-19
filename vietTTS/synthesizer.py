@@ -1,8 +1,9 @@
+import re
+import unicodedata
 from argparse import ArgumentParser
 from pathlib import Path
 
 import soundfile as sf
-
 
 parser = ArgumentParser()
 parser.add_argument('--text', type=str)
@@ -16,10 +17,13 @@ args = parser.parse_args()
 
 
 def nat_normalize_text(text):
+  text = unicodedata.normalize('NFKC', text)
   text = text.lower().strip()
-  import re
-  text = re.sub(r'[\n.,:]+', ' sp ', text)
+  text = text.replace('"', " ")
+  text = re.sub('\s+', ' ', text)
+  text = re.sub(r'[.,:;?!]+', ' sp ', text)
   text = re.sub('[ ]+', ' ', text)
+  text = re.sub('( sp)+ ', ' sp ', text)
   return text.strip()
 
 
