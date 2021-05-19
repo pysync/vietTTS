@@ -56,14 +56,14 @@ class DurationModel(hk.Module):
                                 FLAGS.duration_embed_dropout_rate, is_training)
     self.projection = hk.Sequential([
         hk.Linear(FLAGS.duration_lstm_dim),
-        jax.nn.gelu,
+        jax.nn.relu,
         hk.Linear(1),
     ])
 
   def __call__(self, inputs: DurationInput):
     x = self.encoder(inputs.phonemes, inputs.lengths)
     x = jnp.squeeze(self.projection(x), axis=-1)
-    x = jax.nn.softplus(x)
+    x = jax.nn.relu(x)
     return x
 
 
@@ -84,13 +84,14 @@ class AcousticModel(hk.Module):
     self.prenet_fc1 = hk.Linear(256, with_bias=True)
     self.prenet_fc2 = hk.Linear(256, with_bias=True)
     # posnet
-    self.postnet_convs = [hk.Conv1D(FLAGS.postnet_dim, 5) for _ in range(4)] + [hk.Conv1D(FLAGS.mel_dim, 5)]
+    self.postnet_convs = [hk.Conv1D(FLAGS.postnet_dim, 17) for _ in range(4)] + [hk.Conv1D(FLAGS.mel_dim, 17)]
     self.postnet_bns = [hk.BatchNorm(True, True, 0.9) for _ in range(4)] + [None]
 
   def prenet(self, x, dropout=0.5):
     x = jax.nn.relu(self.prenet_fc1(x))
     x = hk.dropout(hk.next_rng_key(), dropout, x) if dropout > 0 else x
     x = jax.nn.relu(self.prenet_fc2(x))
+    x = hk.dropout(hk.next_rng_key(), dropout, x) if dropout > 0 else x
     return x
 
   def upsample(self, x, durations, L):

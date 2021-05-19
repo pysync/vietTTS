@@ -91,6 +91,7 @@ def train():
             desc='training')
   best_val_step = last_step
   best_val_loss = 1e9
+  best_checkpoint = None
   for step in tr:
     batch = next(train_data_iter)
     loss, (params, aux, rng, optim_state) = update(params, aux, rng, optim_state, batch)
@@ -106,12 +107,14 @@ def train():
       if val_loss < best_val_loss:
         best_val_loss = val_loss
         best_val_step = step
+        best_checkpoint = (step, params, aux, rng, optim_state)
       plot_val_duration(step, next(val_data_iter), params, aux, rng)
       tr.write(f' {step:>6d}/{FLAGS.num_training_steps:>6d} | train loss {loss:.3f} | val loss {val_loss:.3f}')
       save_ckpt(step, params, aux, rng, optim_state, ckpt_dir=FLAGS.ckpt_dir)
 
       if step - best_val_step > 5000:
-        tr.write('Early Stopping!')
+        save_ckpt(*best_checkpoint, ckpt_dir=FLAGS.ckpt_dir)
+        tr.write('Early Stopping! Restore to best checkpoint')
         break
 
 
