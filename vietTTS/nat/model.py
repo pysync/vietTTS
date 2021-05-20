@@ -53,16 +53,24 @@ class DurationModel(hk.Module):
     self.is_training = is_training
     self.encoder = TokenEncoder(FLAGS.vocab_size, FLAGS.duration_lstm_dim,
                                 FLAGS.duration_embed_dropout_rate, is_training)
-    self.projection = hk.Sequential([
-        hk.Linear(FLAGS.duration_lstm_dim),
-        jax.nn.gelu,
-        hk.Linear(1),
-    ])
+    self.lstm = hk.LSTM(FLAGS.duration_lstm_dim)
+    self.projection = hk.Linear(256)
+
+  def inference(self, inputs: DurationInput):
+    x = self.encoder(inputs.phonemes, inputs.lengths)
+    B, L = inputs.durations.shape
+    d = jnp.concatenate((jnp.zeros((B, 1)),  inputs.durations[:, :-1]), axis=1)
+    x = jnp.concatenate((x, d[..., None]), axis=-1)
+    x = self.projection(x)
+    x = jax.nn.log_softmax(x, axis=-1)
 
   def __call__(self, inputs: DurationInput):
     x = self.encoder(inputs.phonemes, inputs.lengths)
-    x = jnp.squeeze(self.projection(x), axis=-1)
-    x = jax.nn.softplus(x)
+    B, L = inputs.durations.shape
+    d = jnp.concatenate((jnp.zeros((B, 1)),  inputs.durations[:, :-1]), axis=1)
+    x = jnp.concatenate((x, d[..., None]), axis=-1)
+    x = self.projection(x)
+    x = jax.nn.log_softmax(x, axis=-1)
     return x
 
 

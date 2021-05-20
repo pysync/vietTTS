@@ -20,9 +20,12 @@ def loss_fn(params, aux, rng, x: DurationInput, is_training=True):
   @hk.transform_with_state
   def net(x):
     return DurationModel(is_training=is_training)(x)
-  durations, aux = net.apply(params, aux, rng, x)
+
+  llhs, aux = net.apply(params, aux, rng, x)
+  targets = jnp.clip(x.durations * 100, a_min=0, a_max=255).astype(jnp.int32)
+  llh = jnp.sum(llhs * jax.nn.one_hot(targets, 256, axis=-1), axis=-1)
   mask = jnp.arange(0, x.phonemes.shape[1])[None, :] < x.lengths[:, None]
-  masked_loss = jnp.abs(durations - x.durations) * mask
+  masked_loss = -llh * mask
   loss = jnp.sum(masked_loss) / jnp.sum(mask)
   return loss, aux
 
@@ -64,9 +67,9 @@ def plot_val_duration(step: int, batch, params, aux, rng):
   predicted_dur, gt_dur = predict_duration(params, aux, rng, batch)
   L = batch.lengths[0]
   x = np.arange(0, L) * 3
-  plt.bar(x + 1, predicted_dur[0, :L])
-  plt.bar(x, gt_dur[0, :L])
-  plt.legend(['predicted', 'gt'])
+  plt.figure(figsize=(15, 5))
+  plt.imshow(jnp.exp(predicted_dur[0]).T, origin='lower', aspect='auto')
+  plt.plot(gt_dur[0] * 100)
   plt.savefig(fn)
   plt.close()
 

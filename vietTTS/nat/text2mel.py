@@ -19,7 +19,7 @@ def load_lexicon(fn):
 
 def predict_duration(tokens):
   forward_fn = jax.jit(hk.transform_with_state(
-      lambda x: DurationModel(is_training=False)(x)
+      lambda x: DurationModel(is_training=False).inference(x)
   ).apply)
   with open(FLAGS.ckpt_dir / 'duration_ckpt_latest.pickle', 'rb') as f:
     dic = pickle.load(f)
