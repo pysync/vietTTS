@@ -75,8 +75,8 @@ def predict_mel(tokens, durations):
 
 
 def text2mel(text: str, lexicon_fn=FLAGS.data_dir / 'lexicon.txt', silence_duration: float = -1.):
-  tokens, pause_mask = text2tokens(text, lexicon_fn)
-  durations = predict_duration(tokens)
+  tokens = text2tokens(text, lexicon_fn)
+  durations, llh = predict_duration(tokens)
   # sp = 1
   durations = jnp.where(
       np.array(tokens)[None, :] == 1,
@@ -86,7 +86,7 @@ def text2mel(text: str, lexicon_fn=FLAGS.data_dir / 'lexicon.txt', silence_durat
   mels = predict_mel(tokens, durations)
   end_silence = durations[0, -1].item()
   silence_frame = int(end_silence * FLAGS.sample_rate / (FLAGS.n_fft // 4))
-  return mels[:, :-silence_frame]
+  return mels[:, :-silence_frame], llh
 
 
 if __name__ == '__main__':
@@ -96,7 +96,13 @@ if __name__ == '__main__':
   parser.add_argument('--text', type=str, required=True)
   parser.add_argument('--output', type=Path, required=True)
   args = parser.parse_args()
-  mel = text2mel(args.text)
+  mel, llh = text2mel(args.text)
+
+  plt.figure(figsize=(10, 5))
+  plt.imshow(llh[:, :50].T, origin='lower', aspect='auto')
+  plt.savefig('llh.png')
+  plt.close()
+
   plt.figure(figsize=(10, 5))
   plt.imshow(mel[0].T, origin='lower', aspect='auto')
   plt.savefig(str(args.output))

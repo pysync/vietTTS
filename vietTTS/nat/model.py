@@ -53,23 +53,32 @@ class DurationModel(hk.Module):
     self.is_training = is_training
     self.encoder = TokenEncoder(FLAGS.vocab_size, FLAGS.duration_lstm_dim,
                                 FLAGS.duration_embed_dropout_rate, is_training)
-    self.lstm = hk.LSTM(FLAGS.duration_lstm_dim)
     self.projection = hk.Linear(256)
+    self.lstm = hk.LSTM(FLAGS.duration_lstm_dim)
 
   def inference(self, inputs: DurationInput):
     x = self.encoder(inputs.phonemes, inputs.lengths)
-    B, L = inputs.durations.shape
-    d = jnp.concatenate((jnp.zeros((B, 1)),  inputs.durations[:, :-1]), axis=1)
-    x = jnp.concatenate((x, d[..., None]), axis=-1)
-    x, hx = hk.dynamic_unroll(self.lstm, x, self.lstm.initial_state(B), time_major=False)
-    x = self.projection(x)
-    x = jax.nn.log_softmax(x, axis=-1)
+    B = 1
+
+    def loop_fn(x, state):
+      hx, prev_out = state
+      x = jnp.concatenate((x, prev_out), axis=-1)
+      x, hx = self.lstm(x, hx)
+      x = self.projection(x)
+      llh = x
+      idx = jnp.argmax(x, axis=-1)[..., None]
+      x = idx.astype(jnp.float32) / 100.
+      return (x, llh), (hx, x)
+    (x, llh), _ = hk.dynamic_unroll(loop_fn, x, (self.lstm.initial_state(B), jnp.zeros((1, 1))), time_major=False)
+    llh = jax.nn.softmax(llh[0], axis=-1)
+    return x[..., 0], llh
 
   def __call__(self, inputs: DurationInput):
     x = self.encoder(inputs.phonemes, inputs.lengths)
     B, L = inputs.durations.shape
     d = jnp.concatenate((jnp.zeros((B, 1)),  inputs.durations[:, :-1]), axis=1)
     x = jnp.concatenate((x, d[..., None]), axis=-1)
+    x, hx = hk.dynamic_unroll(self.lstm, x, self.lstm.initial_state(B), time_major=False)
     x = self.projection(x)
     x = jax.nn.log_softmax(x, axis=-1)
     return x

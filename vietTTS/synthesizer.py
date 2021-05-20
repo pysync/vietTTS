@@ -30,7 +30,7 @@ def nat_normalize_text(text):
 
 text = nat_normalize_text(args.text)
 print('Normalized text input:', text)
-mel = text2mel(text, args.lexicon_file, args.silence_duration)
+mel, _ = text2mel(text, args.lexicon_file, args.silence_duration)
 
 wave = mel2wave(mel)
 
