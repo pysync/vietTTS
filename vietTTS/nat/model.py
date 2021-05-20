@@ -143,7 +143,7 @@ class AcousticModel(hk.Module):
     def loop_fn(inputs, state):
       cond = inputs
       prev_mel, hxcx = state
-      prev_mel = self.prenet(prev_mel)
+      prev_mel = self.prenet(prev_mel[:, None])[:, 0]
       x = jnp.concatenate((cond, prev_mel), axis=-1)
       x, new_hxcx = self.decoder(x, hxcx)
       x = jnp.concatenate((cond, x), axis=-1)
