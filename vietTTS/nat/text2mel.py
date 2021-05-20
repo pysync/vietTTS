@@ -80,7 +80,7 @@ def text2mel(text: str, lexicon_fn=FLAGS.data_dir / 'lexicon.txt', silence_durat
   # sp = 1
   durations = jnp.where(
       np.array(tokens)[None, :] == 1,
-      jnp.clip(durations, a_min=silence_duration * 10, a_max=None),
+      jnp.clip(durations, a_min=silence_duration, a_max=None),
       durations
   )
   mels = predict_mel(tokens, durations)
