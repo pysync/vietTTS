@@ -56,14 +56,14 @@ class DurationModel(hk.Module):
                                 FLAGS.duration_embed_dropout_rate, is_training)
     self.projection = hk.Sequential([
         hk.Linear(FLAGS.duration_lstm_dim),
-        jax.nn.relu,
+        jax.nn.gelu,
         hk.Linear(1),
     ])
 
   def __call__(self, inputs: DurationInput):
     x = self.encoder(inputs.phonemes, inputs.lengths)
     x = jnp.squeeze(self.projection(x), axis=-1)
-    x = jax.nn.relu(x)
+    x = jax.nn.softplus(x)
     return x
 
 

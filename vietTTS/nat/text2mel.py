@@ -50,8 +50,8 @@ def text2tokens(text, lexicon_fn):
       for p in word:
         if p in phonemes:
           tokens.append(phonemes.index(p))
-    tokens.append(phonemes.index('word_end'))
-  tokens.append(1) # sp
+      tokens.append(phonemes.index('word_end'))
+  tokens.append(1)  # sp
 
   return tokens
 
