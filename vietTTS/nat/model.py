@@ -16,9 +16,9 @@ class TokenEncoder(hk.Module):
     super().__init__()
     self.is_training = is_training
     self.embed = hk.Embed(vocab_size, lstm_dim)
-    self.conv1 = hk.Conv1D(lstm_dim, 3, padding='SAME')
-    self.conv2 = hk.Conv1D(lstm_dim, 3, padding='SAME')
-    self.conv3 = hk.Conv1D(lstm_dim, 3, padding='SAME')
+    self.conv1 = hk.Conv1D(lstm_dim, 3, padding='SAME', with_bias=False)
+    self.conv2 = hk.Conv1D(lstm_dim, 3, padding='SAME', with_bias=False)
+    self.conv3 = hk.Conv1D(lstm_dim, 3, padding='SAME', with_bias=False)
     self.bn1 = hk.BatchNorm(True, True, 0.9)
     self.bn2 = hk.BatchNorm(True, True, 0.9)
     self.bn3 = hk.BatchNorm(True, True, 0.9)
