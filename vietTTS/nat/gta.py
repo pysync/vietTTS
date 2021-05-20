@@ -10,10 +10,10 @@ import jax.numpy as jnp
 import numpy as np
 from tqdm.auto import tqdm
 from vietTTS.nat.config import AcousticInput
-from vietTTS.tacotron.dsp import MelFilter
 
 from .config import FLAGS, AcousticInput
 from .data_loader import load_textgrid_wav
+from .dsp import MelFilter
 from .model import AcousticModel
 
 
@@ -30,7 +30,7 @@ def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
   mels = melfilter(inputs.wavs.astype(jnp.float32) / (2**15))
   B, L, D = mels.shape
   inp_mels = jnp.concatenate((jnp.zeros((B, 1, D), dtype=jnp.float32), mels[:, :-1, :]), axis=1)
-  n_frames = inputs.durations / 10 * FLAGS.sample_rate / (FLAGS.n_fft//4)
+  n_frames = inputs.durations * FLAGS.sample_rate / (FLAGS.n_fft//4)
   inputs = inputs._replace(mels=inp_mels, durations=n_frames)
   (mel1_hat, mel2_hat), new_aux = (net if is_training else val_net).apply(params, aux, rng, inputs)
   loss1 = (jnp.square(mel1_hat - mels) + jnp.square(mel2_hat - mels)) / 2

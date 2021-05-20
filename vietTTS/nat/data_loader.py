@@ -49,7 +49,7 @@ def load_textgrid(fn: Path):
 def textgrid_data_loader(data_dir: Path, seq_len: int, batch_size: int, mode: str):
   tg_files = sorted(data_dir.glob('*.TextGrid'))
   random.Random(42).shuffle(tg_files)
-  L = len(tg_files) * 8 // 10
+  L = len(tg_files) * 9 // 10
   assert mode in ['train', 'val']
   phonemes = load_phonemes_set_from_lexicon_file(data_dir / 'lexicon.txt')
   if mode == 'train':
@@ -83,7 +83,7 @@ def textgrid_data_loader(data_dir: Path, seq_len: int, batch_size: int, mode: st
 def load_textgrid_wav(data_dir: Path, token_seq_len: int, batch_size, pad_wav_len, mode: str):
   tg_files = sorted(data_dir.glob('*.TextGrid'))
   random.Random(42).shuffle(tg_files)
-  L = len(tg_files) * 8 // 10
+  L = len(tg_files) * 9 // 10
   assert mode in ['train', 'val', 'gta']
   phonemes = load_phonemes_set_from_lexicon_file(data_dir / 'lexicon.txt')
   if mode == 'gta':

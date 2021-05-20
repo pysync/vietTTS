@@ -5,7 +5,6 @@ import jax
 import jax.numpy as jnp
 from einops.einops import rearrange
 from jax.numpy import ndarray
-from vietTTS.tacotron.config import FLAGS
 
 from .config import FLAGS, AcousticInput, DurationInput
 
@@ -81,12 +80,13 @@ class AcousticModel(hk.Module):
     self.projection = hk.Linear(FLAGS.mel_dim)
 
     # prenet
-    self.prenet_fc1 = hk.Linear(256, with_bias=True)
+    self.prenet_fc1 = hk.Linear(256, with_bias=False)
     self.prenet_bn1 = hk.BatchNorm(True, True, 0.9)
-    self.prenet_fc2 = hk.Linear(256, with_bias=True)
+    self.prenet_fc2 = hk.Linear(256, with_bias=False)
     self.prenet_bn2 = hk.BatchNorm(True, True, 0.9)
     # posnet
-    self.postnet_convs = [hk.Conv1D(FLAGS.postnet_dim, 5) for _ in range(4)] + [hk.Conv1D(FLAGS.mel_dim, 5)]
+    self.postnet_convs = [hk.Conv1D(FLAGS.postnet_dim, 5, with_bias=False)
+                          for _ in range(4)] + [hk.Conv1D(FLAGS.mel_dim, 5)]
     self.postnet_bns = [hk.BatchNorm(True, True, 0.9) for _ in range(4)] + [None]
 
   def prenet(self, x, dropout=0.5):
