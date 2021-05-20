@@ -16,7 +16,7 @@ class FLAGS(Namespace):
 
   # dataset
   max_phoneme_seq_len = 128 * 3
-  max_wave_len = 1024 * 64 * 3
+  max_wave_len = 1024 * 64 * 2
 
   # dsp
   mel_dim = 80
