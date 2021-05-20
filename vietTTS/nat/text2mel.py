@@ -37,22 +37,34 @@ def text2tokens(text, lexicon_fn):
 
   words = text.strip().lower().split()
   tokens = [0]
-  tokens.append(phonemes.index('space'))  # add word separator
+  pause_mask = [1]
   for word in words:
+    if word == '_pause_':
+      if tokens[-1] == 1:
+        tokens.pop()
+        pause_mask.pop()
+        tokens.append(phonemes.index('sp'))
+        pause_mask.append(1)
+      continue
     if word in phonemes:
       tokens.append(phonemes.index(word))
+      pause_mask.append(0)
     elif word in lexicon:
       p = lexicon[word]
       p = p.split()
       p = [phonemes.index(pp) for pp in p]
       tokens.extend(p)
+      pause_mask.extend([0]*len(p))
     else:
       for p in word:
         if p in phonemes:
           tokens.append(phonemes.index(p))
-    tokens.append(phonemes.index('space'))  # add word separator
-  tokens.append(0)  # silence
-  return tokens
+          pause_mask.append(0)
+    tokens.append(phonemes.index('sp'))
+    pause_mask.append(0)
+  assert len(tokens) == len(pause_mask)
+
+  return tokens, pause_mask
 
 
 def predict_mel(tokens, durations):
@@ -74,14 +86,10 @@ def predict_mel(tokens, durations):
 
 
 def text2mel(text: str, lexicon_fn=FLAGS.data_dir / 'lexicon.txt', silence_duration: float = -1.):
-  tokens = text2tokens(text, lexicon_fn)
+  tokens, pause_mask = text2tokens(text, lexicon_fn)
   durations = predict_duration(tokens)
-  durations = jnp.where(
-      np.array(tokens)[None, :] <= 2,
-      jnp.clip(durations, a_min=silence_duration * 10, a_max=10),
-      durations
-  )
-  durations = jnp.where( np.array(tokens)[None, :] == 3, 0.0, durations) # [space] token has empty duration.
+  durations = jnp.where(np.array(tokens)[None, :] == 1, 0.0, durations)  # set all word sep to 0.0
+  durations = jnp.where(np.array(pause_mask)[None, :] == 1, silence_duration * 10, durations)  # only pause locations
   mels = predict_mel(tokens, durations)
   end_silence = durations[0, -1].item() / 10
   silence_frame = int(end_silence * FLAGS.sample_rate / (FLAGS.n_fft // 4))

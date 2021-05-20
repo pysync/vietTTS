@@ -127,6 +127,7 @@ class AcousticModel(hk.Module):
       prev_mel = self.prenet(prev_mel)
       x = jnp.concatenate((cond, prev_mel), axis=-1)
       x, new_hxcx = self.decoder(x, hxcx)
+      x = jnp.concatenate((cond, x), axis=-1)
       x = self.projection(x)
       return x, (x, new_hxcx)
 
@@ -141,6 +142,7 @@ class AcousticModel(hk.Module):
   def __call__(self, inputs: AcousticInput):
     x = self.encoder(inputs.phonemes, inputs.lengths)
     x = self.upsample(x, inputs.durations, inputs.mels.shape[1])
+    up_x = x
     mels = self.prenet(inputs.mels)
     x = jnp.concatenate((x, mels), axis=-1)
     B, L, D = x.shape
@@ -154,6 +156,7 @@ class AcousticModel(hk.Module):
 
     mask = jax.tree_map(lambda x: jax.random.bernoulli(hk.next_rng_key(), 0.1, (B, L, x.shape[-1])), hx)
     x, _ = hk.dynamic_unroll(zoneout_decoder, (x, mask), hx, time_major=False)
+    x = jnp.concatenate((up_x, x), axis=-1)
     x = self.projection(x)
     residual = self.postnet(x)
     return x, x + residual
