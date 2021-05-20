@@ -21,9 +21,9 @@ def nat_normalize_text(text):
   text = text.lower().strip()
   text = text.replace('"', " ")
   text = re.sub('\s+', ' ', text)
-  text = re.sub(r'[.,:;?!]+', ' _pause_ ', text)
+  text = re.sub(r'[.,:;?!]+', ' sp ', text)
   text = re.sub('[ ]+', ' ', text)
-  text = re.sub('( _pause+)+ ', ' _pause_ ', text)
+  text = re.sub('( sp+)+ ', ' sp ', text)
   return text.strip()
 
 

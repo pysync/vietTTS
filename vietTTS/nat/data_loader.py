@@ -14,8 +14,7 @@ def load_phonemes_set_from_lexicon_file(fn: Path):
     word, phonemes = line.strip().lower().split('\t')
     phonemes = phonemes.split()
     S.update(phonemes)
-
-  S = ['sil', 'sp', 'spn', 'space'] + sorted(list(S))
+  S = ['sil', 'sp', 'spn', 'word_end'] + sorted(list(S))
   return S
 
 
@@ -38,10 +37,10 @@ def load_textgrid(fn: Path):
   for p in tg[1]:
     if not p in words[widx]:
       widx = widx + 1
+      if len(words[widx-1].mark) > 0:
+        data.append(('word_end', 0.0))
       if widx >= len(words):
         break
-      if not (len(words[widx].mark) == 0 or len(words[widx-1].mark) == 0):
-        data.append(('sp', 0.0))
       assert p in words[widx], 'mismatched word vs phoneme'
     data.append((p.mark.strip().lower(), p.duration()))
   return data
@@ -87,8 +86,8 @@ def load_textgrid_wav(data_dir: Path, token_seq_len: int, batch_size, pad_wav_le
   L = len(tg_files) * 8 // 10
   assert mode in ['train', 'val', 'gta']
   phonemes = load_phonemes_set_from_lexicon_file(data_dir / 'lexicon.txt')
-  if mode== 'gta':
-     tg_files == tg_files
+  if mode == 'gta':
+    tg_files == tg_files
   elif mode == 'train':
     tg_files = tg_files[:L]
   elif mode == 'val':
