@@ -61,6 +61,7 @@ class DurationModel(hk.Module):
     B, L = inputs.durations.shape
     d = jnp.concatenate((jnp.zeros((B, 1)),  inputs.durations[:, :-1]), axis=1)
     x = jnp.concatenate((x, d[..., None]), axis=-1)
+    x, hx = hk.dynamic_unroll(self.lstm, x, self.lstm.initial_state(B), time_major=False)
     x = self.projection(x)
     x = jax.nn.log_softmax(x, axis=-1)
 

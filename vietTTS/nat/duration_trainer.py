@@ -67,7 +67,7 @@ def plot_val_duration(step: int, batch, params, aux, rng):
   predicted_dur, gt_dur = predict_duration(params, aux, rng, batch)
   L = batch.lengths[0]
   x = np.arange(0, L) * 3
-  plt.figure(figsize=(15, 5))
+  plt.figure(figsize=(5, 15))
   plt.imshow(jnp.exp(predicted_dur[0]).T, origin='lower', aspect='auto')
   plt.plot(gt_dur[0] * 100)
   plt.savefig(fn)
