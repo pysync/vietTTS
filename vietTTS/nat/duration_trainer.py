@@ -40,7 +40,7 @@ val_loss_fn = jax.jit(partial(loss_fn, is_training=False))
 loss_vag = jax.value_and_grad(loss_fn, has_aux=True)
 
 optimizer = optax.chain(optax.clip_by_global_norm(FLAGS.max_grad_norm),
-                        optax.adam(FLAGS.learning_rate))
+                        optax.adam(FLAGS.duration_learning_rate))
 
 
 @jax.jit
