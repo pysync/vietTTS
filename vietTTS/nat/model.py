@@ -110,7 +110,9 @@ class AcousticModel(hk.Module):
   def prenet(self, x, dropout=0.5):
     # use batchnorm as in mozilla TTS
     x = jax.nn.relu(self.prenet_bn1(self.prenet_fc1(x), is_training=self.is_training))
+    x = hk.dropout(hk.next_rng_key(), 0.5, x)
     x = jax.nn.relu(self.prenet_bn2(self.prenet_fc2(x), is_training=self.is_training))
+    x = hk.dropout(hk.next_rng_key(), 0.5, x)
     return x
 
   def upsample(self, x, durations, L):

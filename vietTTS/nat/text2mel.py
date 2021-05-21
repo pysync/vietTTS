@@ -40,6 +40,8 @@ def text2tokens(text, lexicon_fn):
   for word in words:
     if word in phonemes:
       tokens.append(phonemes.index(word))
+      if tokens[-1] > 3:
+        tokens.append(phonemes.index('word_end'))
     elif word in lexicon:
       p = lexicon[word]
       p = p.split()

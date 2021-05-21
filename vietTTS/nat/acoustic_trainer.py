@@ -28,10 +28,6 @@ def val_net(x): return AcousticModel(is_training=False)(x)
 def loss_fn(params, aux, rng, inputs: AcousticInput, is_training=True):
   melfilter = MelFilter(FLAGS.sample_rate, FLAGS.n_fft, FLAGS.mel_dim, FLAGS.fmin, FLAGS.fmax)
   wavs = inputs.wavs.astype(jnp.float32) / (2**15)
-  B, L = wavs.shape
-  rng, rng1 = jax.random.split(rng)
-  noise = jax.random.uniform(rng1, (B, 1), minval=1.0 / 1.5, maxval=1.5)
-  wavs = wavs * noise
   mels = melfilter(wavs)
   B, L, D = mels.shape
   inp_mels = jnp.concatenate((jnp.zeros((B, 1, D), dtype=jnp.float32), mels[:, :-1, :]), axis=1)
