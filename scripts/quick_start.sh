@@ -10,4 +10,4 @@ fi
 
 echo "Generate audio clip"
 text=`cat assets/transcript.txt`
-python3 -m vietTTS.synthesizer --text "$text" --output assets/infore/clip.wav --use-hifigan --use-nat --lexicon-file assets/infore/lexicon.txt --silence-duration 0.2
+python3 -m vietTTS.synthesizer --text "$text" --output assets/infore/clip.wav --lexicon-file assets/infore/lexicon.txt --silence-duration 0.2
